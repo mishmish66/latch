@@ -71,10 +71,10 @@ def loss_dispersion(key, states, actions, train_state: TrainState, num_samples=8
     )
 
     pairwise_latent_state_diffs_norm = jnp.linalg.norm(
-        pairwise_latent_state_diffs, axis=-1
+        pairwise_latent_state_diffs, ord=1, axis=-1
     )
     pairwise_latent_action_diffs_norm = jnp.linalg.norm(
-        pairwise_latent_action_diffs, axis=-1
+        pairwise_latent_action_diffs, ord=1, axis=-1
     )
 
     state_dispersion_loss = jnp.mean(pairwise_latent_state_diffs_norm)

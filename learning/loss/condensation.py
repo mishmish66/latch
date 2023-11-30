@@ -54,8 +54,8 @@ def loss_condensation(key, states, actions, train_state: TrainState):
         latent_state=latent_states,
     )
 
-    state_radii = jnp.linalg.norm(latent_states, axis=-1)
-    action_radii = jnp.linalg.norm(latent_actions, axis=-1)
+    state_radii = jnp.linalg.norm(latent_states, ord=1, axis=-1)
+    action_radii = jnp.linalg.norm(latent_actions, ord=1, axis=-1)
 
     state_radius_violations = jnp.maximum(
         0.0, state_radii - train_state.train_config.state_radius

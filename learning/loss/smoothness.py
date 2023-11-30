@@ -116,7 +116,7 @@ def loss_smoothness(
         )
 
         pairwise_neighborhood_state_dists = jnp.linalg.norm(
-            pairwise_neighborhood_state_diffs, axis=-1
+            pairwise_neighborhood_state_diffs, ord=1, axis=-1
         )
 
         neighborhood_violations = jnp.maximum(
