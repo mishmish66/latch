@@ -15,18 +15,17 @@ from nets.nets import (
 )
 
 import orbax.checkpoint as ocp
-
 import optax
 
 import jax
 from jax import numpy as jnp
 
-
 import wandb
 
 import shutil
-
 from pathlib import Path
+import os
+import time
 
 seed = 0
 
@@ -44,11 +43,11 @@ env_cls = Finger
 env_config = env_cls.get_config()
 
 schedule = optax.cosine_onecycle_schedule(
-    transition_steps=2048,
+    transition_steps=4096,
     peak_value=learning_rate,
     pct_start=0.125,
     div_factor=5.0,
-    final_div_factor=1.0,
+    final_div_factor=5.0,
 )
 
 latent_state_dim = 6
@@ -108,7 +107,15 @@ wandb.init(
     config=train_config.make_dict(),
 )
 
-shutil.rmtree(checkpoint_dir)
+# Check if dir exists
+if os.path.exists(checkpoint_dir):
+    # If it exists wait 3 seconds and then delete it (iterate counter in console for 3 seconds)
+    for i in range(3, 0, -1):
+        print(f"🚀 Preparing to delete old checkpoints in {i} second(s)...", end='\r')  # fmt: skip
+        time.sleep(1)
+    print("🧹 Clearing old checkpoints...")
+
+    shutil.rmtree(checkpoint_dir)
 
 save_and_eval_every = 4
 for i in range(train_config.rollouts):
