@@ -237,7 +237,6 @@ class OptimizerPolicy(Policy):
             * train_state.train_config.action_radius
         )
 
-        # cost_func = Partial(self.cost_func, aux=aux)
         rng, key = jax.random.split(key)
         optimized_actions, (costs, big_active_inds) = optimize_actions(
             key=rng,
