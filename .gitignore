@@ -1,0 +1,6 @@
+*__pycache__*
+wandb/*
+checkpoints/*
+latch/*
+MUJOCO_LOG.TXT
+.vscode
