@@ -21,6 +21,7 @@ import optax
 import jax
 from jax import numpy as jnp
 
+
 import wandb
 
 import shutil
@@ -58,7 +59,7 @@ train_config = TrainConfig.init(
     optimizer=optax.MultiSteps(
         optax.chain(
             optax.zero_nans(),
-            optax.clip_by_global_norm(500),
+            optax.clip_by_global_norm(1e12),
             optax.lion(learning_rate=learning_rate),
         ),
         every_k_schedule=every_k,
@@ -76,15 +77,15 @@ train_config = TrainConfig.init(
     env_cls=env_cls,
     seed=seed,
     rollouts=64,
-    epochs=128,
-    batch_size=64,
+    epochs=1024,
+    batch_size=128,
     every_k=every_k,
     traj_per_rollout=256,
     rollout_length=64,
     state_radius=1.375,
     action_radius=2.0,
-    reconstruction_weight=10.0,
-    forward_weight=10.0,
+    reconstruction_weight=1.0,
+    forward_weight=1.0,
     smoothness_weight=1.0,
     condensation_weight=1.0,
     dispersion_weight=1.0,
@@ -109,10 +110,11 @@ wandb.init(
 
 shutil.rmtree(checkpoint_dir)
 
+save_and_eval_every = 1
 for i in range(train_config.rollouts):
     print(f"Rollout {i}")
     # Save and eval
-    if i % 8 == 0:
+    if i % save_and_eval_every == 0:
         print("Saving and Evaluating Rollout")
         checkpoint_path = checkpoint_dir / f"checkpoint_r{i}_s{train_state.step}"
         checkpointer.save(
