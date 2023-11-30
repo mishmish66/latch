@@ -29,7 +29,7 @@ def train_rollout(key, train_state: TrainState):
             p=1,
             shape=[train_state.train_config.traj_per_rollout],
         )
-        * train_state.train_config.max_target_state_radius
+        * train_state.train_config.state_radius
         * 1.5
     )
     policy = FinderPolicy.init()
