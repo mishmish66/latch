@@ -48,7 +48,7 @@ def train_rollout(key, train_state: TrainState):
 
     traj_states_for_render = dense_states[0]
     train_state.train_config.env_cls.send_wandb_video(
-        name="rollout",
+        name="Rollout Video",
         states=traj_states_for_render,
         env_config=train_state.train_config.env_config,
         step=train_state.step,
