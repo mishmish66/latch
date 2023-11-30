@@ -77,10 +77,10 @@ train_config = TrainConfig.init(
     env_cls=env_cls,
     seed=seed,
     rollouts=64,
-    epochs=1024,
+    epochs=128,
     batch_size=128,
     every_k=every_k,
-    traj_per_rollout=256,
+    traj_per_rollout=512,
     rollout_length=64,
     state_radius=1.375,
     action_radius=2.0,
@@ -110,7 +110,7 @@ wandb.init(
 
 shutil.rmtree(checkpoint_dir)
 
-save_and_eval_every = 1
+save_and_eval_every = 4
 for i in range(train_config.rollouts):
     print(f"Rollout {i}")
     # Save and eval
