@@ -193,7 +193,7 @@ class Finger(Env):
             dense (bool, optional): Whether the states passed are dense or substep struded states. Defaults to True.
         """
 
-        print(f"Sending video {name} for step {step}")
+        print(f"Sending video \"{name}\" 🎬 for step {step}")  # fmt: skip
 
         fps = 24
         video_array = cls.host_make_video(states, env_config, fps, dense)
