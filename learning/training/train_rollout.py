@@ -22,11 +22,15 @@ def train_rollout(key, train_state: TrainState):
 
     # Collect rollout data
     rng, key = jax.random.split(key)
-    target_states = jax.random.ball(
-        key=rng,
-        d=train_state.train_config.latent_state_dim,
-        p=1,
-        shape=[train_state.train_config.traj_per_rollout],
+    target_states = (
+        jax.random.ball(
+            key=rng,
+            d=train_state.train_config.latent_state_dim,
+            p=1,
+            shape=[train_state.train_config.traj_per_rollout],
+        )
+        * train_state.train_config.max_target_state_radius
+        * 1.5
     )
     policy = FinderPolicy.init()
     policy_auxes = jax.vmap(policy.make_aux)(target_state=target_states)
