@@ -76,12 +76,12 @@ def loss_reconstruction(key, states, actions, train_state: TrainState):
         latent_action=latent_actions,
     )
 
-    state_msle = jnp.mean(jnp.log(jnp.square(states - reconstructed_states) + 1))
-    action_msle = jnp.mean(jnp.log(jnp.square(actions - reconstructed_actions) + 1))
-    reconstruction_loss = state_msle + action_msle
+    state_mse = jnp.mean(jnp.square(states - reconstructed_states))
+    action_mse = jnp.mean(jnp.square(actions - reconstructed_actions))
+    reconstruction_loss = state_mse + action_mse
 
     infos = Infos.init()
-    infos = infos.add_plain_info("state_reconstruction_loss", state_msle)
-    infos = infos.add_plain_info("action_reconstruction_loss", action_msle)
+    infos = infos.add_plain_info("state_reconstruction_loss", state_mse)
+    infos = infos.add_plain_info("action_reconstruction_loss", action_mse)
 
     return reconstruction_loss, infos

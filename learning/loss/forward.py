@@ -92,10 +92,10 @@ def loss_forward(key, states, actions, train_state: TrainState):
         future_mask = make_mask(len(latent_next_states), start_state_idx)
 
         state_errors_to_gt = latent_next_states - latent_next_states_prime
-        forward_state_log_square_errors = jnp.log(jnp.square(state_errors_to_gt))
+        forward_state_square_errors = jnp.square(state_errors_to_gt)
 
         future_forward_state_log_square_errors = einsum(
-            forward_state_log_square_errors, future_mask, "t ..., t -> t ..."
+            forward_state_square_errors, future_mask, "t ..., t -> t ..."
         )
         total_loss = jnp.mean(future_forward_state_log_square_errors)
 
