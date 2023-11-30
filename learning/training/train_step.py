@@ -120,11 +120,34 @@ def train_step(
     total_grad_norm = compute_net_grad_norm(cumulative_grad)
     total_nan_proportion = compute_nan_proportion(cumulative_grad)
 
+    loss_infos = loss_infos.add_plain_info(
+        "state_encoder_grad_nan_proportion",
+        compute_nan_proportion(cumulative_grad.state_encoder_params),
+    )
+    loss_infos = loss_infos.add_plain_info(
+        "action_encoder_grad_nan_proportion",
+        compute_nan_proportion(cumulative_grad.action_encoder_params),
+    )
+    loss_infos = loss_infos.add_plain_info(
+        "transition_model_grad_nan_proportion",
+        compute_nan_proportion(cumulative_grad.transition_model_params),
+    )
+    loss_infos = loss_infos.add_plain_info(
+        "state_decoder_grad_nan_proportion",
+        compute_nan_proportion(cumulative_grad.state_decoder_params),
+    )
+    loss_infos = loss_infos.add_plain_info(
+        "action_decoder_grad_nan_proportion",
+        compute_nan_proportion(cumulative_grad.action_decoder_params),
+    )
+
     loss_infos = loss_infos.add_plain_info("total_grad_norm", total_grad_norm)
     loss_infos = loss_infos.add_plain_info("total_nan_proportion", total_nan_proportion)
 
     loss_infos.dump_to_wandb(train_state=train_state)
-    loss_infos.dump_to_console(train_state=train_state)
+
+    # This was clogging up the console and slowing down training
+    # loss_infos.dump_to_console(train_state=train_state)
 
     train_state = train_state.apply_gradients(cumulative_grad)
 
