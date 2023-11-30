@@ -11,10 +11,13 @@ from nets.inference import (
     sample_gaussian,
     get_neighborhood_states,
     get_neighborhood_actions,
+    make_mask,
 )
 
 import jax
 from jax import numpy as jnp
+
+from einops import einsum
 
 
 def loss_forward(key, states, actions, train_state: TrainState):
@@ -86,10 +89,15 @@ def loss_forward(key, states, actions, train_state: TrainState):
             current_action_i=start_state_idx,
         )
 
+        future_mask = make_mask(len(latent_next_states), start_state_idx)
+
         state_errors_to_gt = latent_next_states - latent_next_states_prime
         forward_state_log_square_errors = jnp.log(jnp.square(state_errors_to_gt))
 
-        total_loss = jnp.mean(forward_state_log_square_errors)
+        future_forward_state_log_square_errors = einsum(
+            forward_state_log_square_errors, future_mask, "t ..., t -> t ..."
+        )
+        total_loss = jnp.mean(future_forward_state_log_square_errors)
 
         infos = Infos.init()
 
