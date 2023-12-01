@@ -19,6 +19,7 @@ import optax
 
 import jax
 from jax import numpy as jnp
+from jax.experimental.host_callback import id_tap
 
 import wandb
 
@@ -125,7 +126,7 @@ if os.path.exists(checkpoint_dir):
     shutil.rmtree(checkpoint_dir)
 
 
-def save_and_eval(key, train_state, i):
+def host_save_model(key, train_state, i):
     checkpoint_path = checkpoint_dir / f"checkpoint_r{i}_s{train_state.step}"
     checkpointer.save(
         checkpoint_path.absolute(),
@@ -133,8 +134,19 @@ def save_and_eval(key, train_state, i):
     )
     wandb.save(str(checkpoint_dir / "checkpoint_r*"), base_path=str(checkpoint_dir))
 
+
+def save_model(key, train_state, i):
+    def save_model_for_tap(tap_pack, transforms):
+        key, train_state, i = tap_pack
+        host_save_model(key, train_state, i)
+
+    id_tap(save_model_for_tap, (key, train_state, i))
+
+
+def eval_model(key, train_state, i):
+    rng, key = jax.random.split(key)
     _, infos, dense_states = eval_batch_actor(
-        key=key,
+        key=rng,
         start_state=env_cls.init(),
         train_state=train_state,
     )
@@ -148,6 +160,14 @@ def save_and_eval(key, train_state, i):
     )
 
 
+def save_and_eval_model(key, train_state, i):
+    """Saves the model and evaluates it."""
+    jax.debug.print("Saving 💾 and Evaluating 🧐 Network")
+
+    save_model(key, train_state, i)
+    eval_model(key, train_state, i)
+
+
 print("Starting Train Loop 🤓")
 
 save_and_eval_every = 4
@@ -155,13 +175,17 @@ save_and_eval_every = 4
 
 # @profile
 def train_loop(train_state, x_pack):
-    # muppy.print_summary()
-
     i, key = x_pack
 
-    if i % save_and_eval_every == 0:
-        print("Saving 💾 and Evaluating 🧐 Network")
-        # save_and_eval(key, train_state, i)
+    jax.debug.print("Rollout 🛺 {i}", i=i)
+
+    is_every = i % save_and_eval_every == 0
+    jax.lax.cond(
+        is_every,
+        save_and_eval_model,
+        lambda key, train_state, i: None,
+        *(key, train_state, i),
+    )
 
     rng, key = jax.random.split(key)
     train_state = train_rollout(
@@ -174,5 +198,6 @@ def train_loop(train_state, x_pack):
 
 xs = (jnp.arange(train_config.rollouts), jax.random.split(key, train_config.rollouts))
 
-for x_pack in zip(*xs):
-    train_state, _ = train_loop(train_state, x_pack)
+final_train_state, _ = jax.lax.scan(train_loop, train_state, xs)
+
+print("Finished Training 🎉")
