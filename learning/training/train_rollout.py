@@ -11,7 +11,11 @@ import jax
 import jax.numpy as jnp
 from jax.tree_util import Partial
 
+# # Profiling stuff
+# from memory_profiler import profile
 
+
+# @profile
 def train_rollout(key, train_state: TrainState):
     """Trains the model for a single rollout.
 
