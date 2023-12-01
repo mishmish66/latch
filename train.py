@@ -27,6 +27,12 @@ from pathlib import Path
 import os
 import time
 
+# # Profiling stuff
+# from pympler import muppy
+# from memory_profiler import profile
+
+# ##############################
+
 seed = 0
 
 # Generate random key
@@ -77,9 +83,9 @@ train_config = TrainConfig.init(
     seed=seed,
     rollouts=64,
     epochs=128,
-    batch_size=128,
+    batch_size=32,
     every_k=every_k,
-    traj_per_rollout=512,
+    traj_per_rollout=256,
     rollout_length=64,
     state_radius=1.375,
     action_radius=2.0,
@@ -111,42 +117,62 @@ wandb.init(
 if os.path.exists(checkpoint_dir):
     # If it exists wait 3 seconds and then delete it (iterate counter in console for 3 seconds)
     for i in range(3, 0, -1):
-        print(f"🚀 Preparing to delete old checkpoints in {i} second(s)...")  # fmt: skip
+        print(f"🚀 Preparing to delete old checkpoints in {i} second(s)...", end=None)
         time.sleep(1)
-        print("\r")
-    print("🧹 Clearing old checkpoints...")
+        print("\r", end=None)
+    print("\n🧹 Clearing old checkpoints...")
 
     shutil.rmtree(checkpoint_dir)
 
+
+def save_and_eval(key, train_state, i):
+    checkpoint_path = checkpoint_dir / f"checkpoint_r{i}_s{train_state.step}"
+    checkpointer.save(
+        checkpoint_path.absolute(),
+        train_state,
+    )
+    wandb.save(str(checkpoint_dir / "checkpoint_r*"), base_path=str(checkpoint_dir))
+
+    _, infos, dense_states = eval_batch_actor(
+        key=key,
+        start_state=env_cls.init(),
+        train_state=train_state,
+    )
+
+    infos.dump_to_wandb(train_state)
+    env_cls.send_wandb_video(
+        name="Actor Video",
+        states=dense_states[0],
+        env_config=env_config,
+        step=train_state.step,
+    )
+
+
+print("Starting Train Loop 🤓")
+
 save_and_eval_every = 4
-for i in range(train_config.rollouts):
-    print(f"Rollout {i}")
-    # Save and eval
+
+
+@profile
+def train_loop(train_state, x_pack):
+    muppy.print_summary()
+
+    i, key = x_pack
+
     if i % save_and_eval_every == 0:
-        print("Saving and Evaluating Rollout")
-        checkpoint_path = checkpoint_dir / f"checkpoint_r{i}_s{train_state.step}"
-        checkpointer.save(
-            checkpoint_path.absolute(),
-            train_state,
-        )
-        wandb.save(str(checkpoint_dir / "checkpoint_r*"), base_path=str(checkpoint_dir))
-
-        _, infos, dense_states = eval_batch_actor(
-            key=key,
-            start_state=env_cls.init(),
-            train_state=train_state,
-        )
-
-        infos.dump_to_wandb(train_state)
-        env_cls.send_wandb_video(
-            name="Actor Video",
-            states=dense_states[0],
-            env_config=env_config,
-            step=train_state.step,
-        )
+        print("Saving 💾 and Evaluating 🧐 Network")
+        # save_and_eval(key, train_state, i)
 
     rng, key = jax.random.split(key)
     train_state = train_rollout(
         key=key,
         train_state=train_state,
     )
+
+    return train_state, None
+
+
+xs = (jnp.arange(train_config.rollouts), jax.random.split(key, train_config.rollouts))
+
+for x_pack in zip(*xs):
+    train_state, _ = train_loop(train_state, x_pack)
