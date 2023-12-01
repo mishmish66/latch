@@ -157,13 +157,21 @@ class Losses:
             train_config.forward_gate_sharpness,
             train_config.forward_gate_center,
         )
+        condensation_gate = (
+            make_gate_value(
+                self.smoothness_loss,
+                train_config.condensation_gate_sharpness,
+                train_config.condensation_gate_center,
+            )
+            * forward_gate
+        )
         smoothness_gate = (
             make_gate_value(
                 self.forward_loss,
                 train_config.smoothness_gate_sharpness,
                 train_config.smoothness_gate_center,
             )
-            * forward_gate
+            * condensation_gate
         )
         dispersion_gate = (
             make_gate_value(
@@ -171,15 +179,7 @@ class Losses:
                 train_config.dispersion_gate_sharpness,
                 train_config.dispersion_gate_center,
             )
-            * smoothness_gate
-        )
-        condensation_gate = (
-            make_gate_value(
-                self.smoothness_loss,
-                train_config.condensation_gate_sharpness,
-                train_config.condensation_gate_center,
-            )
-            * smoothness_gate
+            * condensation_gate
         )
 
         scaled_reconstruction_loss = (
@@ -191,11 +191,6 @@ class Losses:
         scaled_condensation_loss = (
             self.condensation_loss * train_config.condensation_weight
         )
-
-        scaled_gated_forward_loss = scaled_forward_loss * forward_gate
-        scaled_gated_smoothness_loss = scaled_smoothness_loss * smoothness_gate
-        scaled_gated_dispersion_loss = scaled_dispersion_loss * dispersion_gate
-        scaled_gated_condensation_loss = scaled_condensation_loss * condensation_gate
 
         total_loss = (
             scaled_reconstruction_loss
@@ -220,13 +215,21 @@ class Losses:
 
         result_loss = Losses.init(
             reconstruction_loss=scaled_reconstruction_loss,
-            forward_loss=scaled_gated_forward_loss,
-            smoothness_loss=scaled_gated_smoothness_loss,
-            dispersion_loss=scaled_gated_dispersion_loss,
-            condensation_loss=scaled_gated_condensation_loss,
+            forward_loss=scaled_forward_loss,
+            smoothness_loss=scaled_smoothness_loss,
+            dispersion_loss=scaled_dispersion_loss,
+            condensation_loss=scaled_condensation_loss,
         )
 
-        return result_loss, infos
+        result_gates = Losses.init(
+            reconstruction_loss=1.0,
+            forward_loss=forward_gate,
+            smoothness_loss=smoothness_gate,
+            dispersion_loss=dispersion_gate,
+            condensation_loss=condensation_gate,
+        )
+
+        return result_loss, result_gates, infos
 
     def to_list(self):
         return [

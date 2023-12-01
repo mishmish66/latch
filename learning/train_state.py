@@ -19,6 +19,9 @@ class NetState:
     state_decoder_params: any
     action_decoder_params: any
 
+    def replace(self, **kwargs):
+        return replace(self, **kwargs)
+
     def tree_flatten(self):
         return (
             self.state_encoder_params,

@@ -43,21 +43,43 @@ def train_step(
             train_config=train_state.train_config,
         )
 
-        scaled_gated_losses, loss_infos = losses.scale_gate_info(
+        scaled_losses, loss_gates, loss_infos = losses.scale_gate_info(
             train_state.train_config
         )
 
         infos = Infos.merge(infos, loss_infos)
 
-        return scaled_gated_losses, infos
+        return scaled_losses, (loss_gates, infos)
 
     # Get the gradients
     rng, key = jax.random.split(key)
-    grads_loss_obj, (loss_infos) = jax.jacrev(
+    grads_loss_obj, (loss_gates, loss_infos) = jax.jacrev(
         loss_for_grad,
         argnums=1,
         has_aux=True,
     )(rng, train_state.primary_net_state)
+
+    def scale_grad(grad, scale):
+        return jax.tree_map(lambda x: x * scale, grad)
+
+    ### Process the gradients ###
+    # Extract the transition model grads for the forward loss
+    forward_transition_model_grad = grads_loss_obj.forward_loss.transition_model_params
+    # Gate the grads
+    grads_loss_obj = Losses.from_list(
+        [
+            scale_grad(loss_grads, loss_gate)
+            for loss_grads, loss_gate in zip(
+                grads_loss_obj.to_list(), loss_gates.to_list()
+            )
+        ]
+    )
+    # Swap back in the ungated transition model grads for the forward loss
+    # doing this prevents the transition model from going crazy before the gate kicks in
+    swapped_forward_loss_grad = grads_loss_obj.forward_loss.replace(
+        transition_model_params=forward_transition_model_grad
+    )
+    grads_loss_obj = grads_loss_obj.replace(forward_loss=swapped_forward_loss_grad)
 
     # Find the magnitude of each gradient for logging
     def compute_net_grad_norm(grads_net_obj: NetState):
