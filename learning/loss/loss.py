@@ -201,11 +201,11 @@ class Losses:
 
         infos = infos.add_loss_info("total_loss", total_loss)
 
-        infos = infos.add_loss_info("reconstruction_loss", scaled_reconstruction_loss)
-        infos = infos.add_loss_info("forward_loss", scaled_forward_loss)
-        infos = infos.add_loss_info("smoothness_loss", scaled_smoothness_loss)
-        infos = infos.add_loss_info("dispersion_loss", scaled_dispersion_loss)
-        infos = infos.add_loss_info("condensation_loss", scaled_condensation_loss)
+        infos = infos.add_loss_info("reconstruction_loss", self.reconstruction_loss)
+        infos = infos.add_loss_info("forward_loss", self.forward_loss)
+        infos = infos.add_loss_info("smoothness_loss", self.smoothness_loss)
+        infos = infos.add_loss_info("dispersion_loss", self.dispersion_loss)
+        infos = infos.add_loss_info("condensation_loss", self.condensation_loss)
 
         infos = infos.add_plain_info("forward_gate", forward_gate)
         infos = infos.add_plain_info("smoothness_gate", smoothness_gate)
