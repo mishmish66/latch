@@ -1,11 +1,14 @@
 from env.env import Env
 from env.rollout import collect_rollout_batch
 
+from policy.policy_noise_wrapper import PolicyNoiseWrapper
 from policy.finder_policy import FinderPolicy
 from policy.random_policy import RandomPolicy
 
 from learning.training.train_epoch import train_epoch
 from learning.train_state import TrainState
+
+from nets.inference import encode_state
 
 import jax
 import jax.numpy as jnp
@@ -26,18 +29,26 @@ def train_rollout(key, train_state: TrainState):
 
     # Collect rollout data
     rng, key = jax.random.split(key)
-    target_states = (
-        jax.random.ball(
-            key=rng,
-            d=train_state.train_config.latent_state_dim,
-            p=1,
-            shape=[train_state.train_config.traj_per_rollout],
-        )
-        * train_state.train_config.state_radius
-        * 1.5
+
+    random_vectors = jax.random.normal(
+        key=rng,
+        shape=[
+            train_state.train_config.traj_per_rollout,
+            train_state.train_config.latent_state_dim,
+        ],
     )
-    policy = FinderPolicy.init()
-    policy_auxes = jax.vmap(policy.make_aux)(target_state=target_states)
+    random_vector_norms = jnp.linalg.norm(random_vectors, ord=1, axis=-1)
+    unit_norm_samples = random_vectors / random_vector_norms[..., None]
+
+    target_states = unit_norm_samples * train_state.train_config.state_radius * 1.25
+
+    policy = PolicyNoiseWrapper(FinderPolicy.init())
+    policy_auxes = jax.vmap(
+        Partial(
+            policy.make_aux,
+            variances=jnp.ones(2) * 0.1,
+        )
+    )(target_state=target_states)
 
     rng, key = jax.random.split(key)
     start_state = train_state.train_config.env_cls.init()
@@ -49,6 +60,28 @@ def train_rollout(key, train_state: TrainState):
         train_state=train_state,
         batch_size=train_state.train_config.traj_per_rollout,
     )
+
+    rollout_infos = rollout_infos.condense(method="mean")
+
+    final_states = states[..., -1, :]
+
+    rng, key = jax.random.split(key)
+    rngs = jax.random.split(rng, len(final_states))
+    latent_final_states = jax.vmap(
+        jax.tree_util.Partial(
+            encode_state,
+            train_state=train_state,
+        )
+    )(rngs, final_states)
+
+    final_latent_diffs = latent_final_states - target_states
+    final_latent_diff_norms = jnp.linalg.norm(final_latent_diffs, ord=1, axis=-1)
+    final_latent_diff_norms_mean = jnp.mean(final_latent_diff_norms)
+
+    rollout_infos = rollout_infos.add_plain_info(
+        "mean_rollout_costs", final_latent_diff_norms_mean
+    )
+    rollout_infos.dump_to_wandb(train_state, prefix="Rollout")
 
     traj_states_for_render = dense_states[0]
     train_state.train_config.env_cls.send_wandb_video(
