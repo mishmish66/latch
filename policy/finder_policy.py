@@ -10,6 +10,7 @@ from nets.inference import (
     infer_states,
     get_latent_state_prime_gaussians,
     eval_log_gaussian,
+    make_mask,
 )
 
 from jax.tree_util import register_pytree_node_class, Partial
@@ -30,18 +31,21 @@ class FinderPolicy(OptimizerPolicy):
         latent_start_state,
         aux,
         train_state: TrainState,
+        current_action_i=0,
     ):
         target_state = aux
         rng, key = jax.random.split(key)
-        latent_state_prime_gaussians = get_latent_state_prime_gaussians(
-            latent_start_state, latent_actions, train_state
+        latent_states_prime = infer_states(
+            rng, latent_start_state, latent_actions, train_state
         )
+        latent_states_prime_err = latent_states_prime - target_state
+        latent_states_prime_err_norm = jnp.linalg.norm(
+            latent_states_prime_err, ord=1, axis=-1
+        )
+        causal_mask = make_mask(len(latent_actions), current_action_i)
+        future_err_norms = jnp.where(causal_mask, latent_states_prime_err_norm, 0.0)
 
-        log_gauss_vals = jax.vmap(
-            jax.tree_util.Partial(eval_log_gaussian, point=target_state)
-        )(latent_state_prime_gaussians)
-
-        return jnp.mean(-log_gauss_vals)
+        return jnp.mean(future_err_norms)
 
     @staticmethod
     def make_aux(target_state):
