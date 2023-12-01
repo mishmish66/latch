@@ -193,14 +193,14 @@ class Finger(Env):
             dense (bool, optional): Whether the states passed are dense or substep struded states. Defaults to True.
         """
 
-        print(f"Sending ✉️ \"{name}\" for step {step}")  # fmt: skip
+        print(f"Sending 📨 \"{name}\" for step {step}")  # fmt: skip
 
         fps = 24
         video_array = cls.host_make_video(states, env_config, fps, dense)
 
         wandb.log({name: wandb.Video(video_array, fps=fps)}, step=step)
 
-        print(f"Sent 🕊️ \"{name}\"")  # fmt: skip
+        # print(f"Sent 🕊️ \"{name}\"")  # fmt: skip
 
     # Jit decorator here is necessary to avoid the string being interpreted as a jax type
     # and jax can't handle the string type so that causes a crash.
