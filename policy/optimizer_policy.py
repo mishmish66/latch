@@ -113,6 +113,7 @@ def optimize_actions(
                 latent_start_state=latent_start_state,
                 train_state=train_state,
                 aux=aux,
+                current_action_i=start_state_idx,
             )(latent_actions=current_plan)
 
         cost, act_grad = jax.value_and_grad(cost_for_grad)(current_plan)
@@ -173,6 +174,7 @@ class OptimizerPolicy(Policy):
         latent_start_state,
         aux,
         train_state: TrainState,
+        current_action_i=0,
     ):
         raise NotImplementedError("Must be implemented by subclass.")
 
