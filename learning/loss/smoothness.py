@@ -1,4 +1,4 @@
-from ..train_state import TrainState
+from ..train_state import TrainState, NetState, TrainConfig
 
 from infos import Infos
 
@@ -21,7 +21,8 @@ def loss_smoothness(
     key,
     states,
     actions,
-    train_state: TrainState,
+    net_state: NetState,
+    train_config: TrainConfig,
     neighborhood_sample_count=8,
 ):
     """Comutes the smoothness loss for a set of states and actions.
@@ -30,7 +31,8 @@ def loss_smoothness(
         key (PRNGKey): Random seed to calculate the loss.
         states (array): An (b x l x s) array of b trajectories of l states with dim s
         actions (array): An (b x l x a) array of b trajectories of l actions with dim a
-        train_state (TrainState): The current training state.
+        net_state (NetState): The network weights to use.
+        train_config (TrainConfig): The training config.
         neighborhood_sample_count (int, optional): The number of samples to take in the neighborhood. Defaults to 8.
 
     Returns:
@@ -59,7 +61,8 @@ def loss_smoothness(
         latent_states = jax.vmap(
             jax.tree_util.Partial(
                 encode_state,
-                train_state=train_state,
+                net_state=net_state,
+                train_config=train_config,
             )
         )(
             key=rngs,
@@ -74,7 +77,7 @@ def loss_smoothness(
         neighborhood_latent_start_states = get_neighborhood_states(
             key=rng,
             latent_state=latent_start_state,
-            train_state=train_state,
+            train_config=train_config,
             count=neighborhood_sample_count,
         )
 
@@ -83,7 +86,8 @@ def loss_smoothness(
         latent_actions = jax.vmap(
             jax.tree_util.Partial(
                 encode_action,
-                train_state=train_state,
+                net_state=net_state,
+                train_config=train_config,
             )
         )(
             key=rngs,
@@ -96,7 +100,7 @@ def loss_smoothness(
         neighborhood_latent_actions = jax.vmap(
             jax.tree_util.Partial(
                 get_neighborhood_actions,
-                train_state=train_state,
+                train_config=train_config,
                 count=neighborhood_sample_count,
             ),
             out_axes=1,
@@ -106,7 +110,10 @@ def loss_smoothness(
         rngs = jax.random.split(rng, neighborhood_sample_count)
         neighborhood_next_latent_states_prime = jax.vmap(
             jax.tree_util.Partial(
-                infer_states, train_state=train_state, current_action_i=start_state_idx
+                infer_states,
+                net_state=net_state,
+                train_config=train_config,
+                current_action_i=start_state_idx,
             )
         )(rngs, neighborhood_latent_start_states, neighborhood_latent_actions)
 

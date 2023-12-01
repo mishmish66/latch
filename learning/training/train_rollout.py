@@ -50,6 +50,7 @@ def train_rollout(key, train_state: TrainState):
         )
     )(target_state=target_states)
 
+    # Use the target network to run the policy
     rng, key = jax.random.split(key)
     start_state = train_state.train_config.env_cls.init()
     (states, actions), rollout_infos, dense_states = collect_rollout_batch(
@@ -57,7 +58,8 @@ def train_rollout(key, train_state: TrainState):
         start_state=start_state,
         policy=policy,
         policy_auxs=policy_auxes,
-        train_state=train_state,
+        net_state=train_state.target_net_state,
+        train_config=train_state.train_config,
         batch_size=train_state.train_config.traj_per_rollout,
     )
 
@@ -70,7 +72,8 @@ def train_rollout(key, train_state: TrainState):
     latent_final_states = jax.vmap(
         jax.tree_util.Partial(
             encode_state,
-            train_state=train_state,
+            net_state=train_state.target_net_state,
+            train_config=train_state.train_config,
         )
     )(rngs, final_states)
 
@@ -91,9 +94,6 @@ def train_rollout(key, train_state: TrainState):
         step=train_state.step,
     )
 
-    # Comment this out to not clog up the actor info
-    # rollout_infos.dump_to_wandb(train_state)
-
     # Train the model for a bunch of epochs over the rollout data
     def train_epoch_for_scan(train_state, key):
         new_train_state = train_epoch(key, states, actions, train_state)
@@ -102,5 +102,8 @@ def train_rollout(key, train_state: TrainState):
     rng, key = jax.random.split(rng)
     rngs = jax.random.split(key, train_state.train_config.epochs)
     train_state, _ = jax.lax.scan(train_epoch_for_scan, train_state, rngs)
+
+    # Update the target network
+    train_state = train_state.pull_target()
 
     return train_state

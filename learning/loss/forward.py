@@ -1,4 +1,4 @@
-from ..train_state import TrainState
+from ..train_state import TrainState, NetState, TrainConfig
 
 from infos import Infos
 
@@ -20,14 +20,15 @@ from jax import numpy as jnp
 from einops import einsum
 
 
-def loss_forward(key, states, actions, train_state: TrainState):
+def loss_forward(key, states, actions, net_state: NetState, train_config: TrainConfig):
     """Comutes the forward loss for a set of states and actions.
 
     Args:
         key (PRNGKey): Random seed to calculate the loss.
         states (array): An (b x l x s) array of b trajectories of l states with dim s
         actions (array): An (b x l x a) array of b trajectories of l actions with dim a
-        train_state (TrainState): The current training state.
+        net_state (NetState): The network weights to use.
+        train_config (TrainConfig): The training config.
 
     Returns:
         (scalar, Info): A tuple containing the loss value and associated info object.
@@ -56,7 +57,8 @@ def loss_forward(key, states, actions, train_state: TrainState):
         latent_states = jax.vmap(
             jax.tree_util.Partial(
                 encode_state,
-                train_state=train_state,
+                net_state=net_state,
+                train_config=train_config,
             )
         )(
             key=rngs,
@@ -72,7 +74,8 @@ def loss_forward(key, states, actions, train_state: TrainState):
         latent_actions = jax.vmap(
             jax.tree_util.Partial(
                 encode_action,
-                train_state=train_state,
+                net_state=net_state,
+                train_config=train_config,
             )
         )(
             key=rngs,
@@ -85,7 +88,8 @@ def loss_forward(key, states, actions, train_state: TrainState):
             key=rng,
             latent_start_state=latent_start_state,
             latent_actions=latent_actions,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
             current_action_i=start_state_idx,
         )
 

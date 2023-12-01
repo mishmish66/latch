@@ -4,7 +4,7 @@ from .forward import loss_forward
 from .reconstruction import loss_reconstruction
 from .smoothness import loss_smoothness
 
-from learning.train_state import TrainState
+from learning.train_state import NetState, TrainConfig
 
 from infos import Infos
 
@@ -44,14 +44,17 @@ class Losses:
         )
 
     @classmethod
-    def compute(cls, key, states, actions, train_state: TrainState):
+    def compute(
+        cls, key, states, actions, net_state: NetState, train_config: TrainConfig
+    ):
         """Compute the loss for a batch of trajectories.
 
         Args:
             key (PRNGKey): Random seed to calculate the loss.
             states (array): An (b x l x s) array of b trajectories of l states with dim s
             actions (array): An (b x l-1 x a) array of b trajectories of l-1 actions with dim a
-            train_state (TrainState): The current training state.
+            net_state (NetState): The network weights.
+            train_config (TrainConfig): The training configuration.
 
         Returns:
             (Losses, Infos): A tuple containing the loss object and associated infos object.
@@ -61,13 +64,15 @@ class Losses:
             key=key,
             states=states,
             actions=actions,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
         )
         smoothness_loss, smoothness_info = loss_smoothness(
             key=key,
             states=states,
             actions=actions,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
         )
 
         # Drop the last state to make the states and actions the same length
@@ -79,19 +84,22 @@ class Losses:
             key=key,
             states=flat_states,
             actions=flat_actions,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
         )
         dispersion_loss, dispersion_info = loss_dispersion(
             key=key,
             states=flat_states,
             actions=flat_actions,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
         )
         reconstruction_loss, reconstruction_info = loss_reconstruction(
             key=key,
             states=flat_states,
             actions=flat_actions,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
         )
 
         losses = Losses.init(
@@ -141,10 +149,8 @@ class Losses:
             condensation_loss=jnp.sum([l.condensation_loss for l in losses]),
         )
 
-    def scale_gate_info(self, train_state: TrainState):
+    def scale_gate_info(self, train_config: TrainConfig):
         infos = Infos.init()
-
-        train_config = train_state.train_config
 
         forward_gate = make_gate_value(
             self.reconstruction_loss,

@@ -1,6 +1,6 @@
 from policy.optimizer_policy import OptimizerPolicy
 
-from learning.train_state import TrainState
+from learning.train_state import TrainState, NetState, TrainConfig
 
 from nets.inference import (
     encode_state,
@@ -30,13 +30,19 @@ class FinderPolicy(OptimizerPolicy):
         latent_actions,
         latent_start_state,
         aux,
-        train_state: TrainState,
+        net_state: NetState,
+        train_config: TrainConfig,
         current_action_i=0,
     ):
         target_state = aux
         rng, key = jax.random.split(key)
         latent_states_prime = infer_states(
-            rng, latent_start_state, latent_actions, train_state
+            rng,
+            latent_start_state,
+            latent_actions,
+            net_state=net_state,
+            train_config=train_config,
+            current_action_i=current_action_i,
         )
         latent_states_prime_err = latent_states_prime - target_state
         latent_states_prime_err_norm = jnp.linalg.norm(

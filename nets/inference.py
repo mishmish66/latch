@@ -1,4 +1,5 @@
-from learning.train_state import TrainState
+from learning.train_state import TrainState, NetState
+from learning.train_config import TrainConfig
 
 from nets.nets import make_inds
 
@@ -35,9 +36,9 @@ def sample_gaussian(key, gaussian):
     return result
 
 
-def get_latent_state_gaussian(state, train_state: TrainState):
-    latent_state_gaussian = train_state.train_config.state_encoder.apply(
-        train_state.net_state.state_encoder_params,
+def get_latent_state_gaussian(state, net_state: NetState, train_config: TrainState):
+    latent_state_gaussian = train_config.state_encoder.apply(
+        net_state.state_encoder_params,
         state,
     )
     return latent_state_gaussian
@@ -46,11 +47,12 @@ def get_latent_state_gaussian(state, train_state: TrainState):
 def encode_state(
     key,
     state,
-    train_state: TrainState,
+    net_state: NetState,
+    train_config: TrainConfig,
 ):
     rng, key = jax.random.split(key)
 
-    latent_state_gaussian = get_latent_state_gaussian(state, train_state)
+    latent_state_gaussian = get_latent_state_gaussian(state, net_state, train_config)
     latent_state = sample_gaussian(rng, latent_state_gaussian)
 
     return latent_state
@@ -59,21 +61,21 @@ def encode_state(
 def get_neighborhood_states(
     key,
     latent_state,
-    train_state: TrainState,
+    train_config: TrainConfig,
     count=1,
 ):
     rng, key = jax.random.split(key)
     ball_sample = jax.random.ball(
-        rng, train_state.train_config.latent_state_dim, p=1, shape=[count]
+        rng, train_config.latent_state_dim, p=1, shape=[count]
     )
 
     return latent_state + ball_sample
 
 
-def get_neighborhood_actions(key, latent_action, train_state: TrainState, count=1):
+def get_neighborhood_actions(key, latent_action, train_config: TrainConfig, count=1):
     rng, key = jax.random.split(key)
     ball_sample = jax.random.ball(
-        rng, d=train_state.train_config.latent_action_dim, p=1, shape=[count]
+        rng, d=train_config.latent_action_dim, p=1, shape=[count]
     )
 
     return latent_action + ball_sample
@@ -82,10 +84,11 @@ def get_neighborhood_actions(key, latent_action, train_state: TrainState, count=
 def get_latent_action_gaussian(
     action,
     latent_state,
-    train_state: TrainState,
+    net_state: NetState,
+    train_config: TrainConfig,
 ):
-    latent_action_gaussian = train_state.train_config.action_encoder.apply(
-        train_state.net_state.action_encoder_params,
+    latent_action_gaussian = train_config.action_encoder.apply(
+        net_state.action_encoder_params,
         action,
         latent_state,
     )
@@ -96,10 +99,11 @@ def encode_action(
     key,
     action,
     latent_state,
-    train_state: TrainState,
+    net_state: NetState,
+    train_config: TrainConfig,
 ):
     latent_action_gaussian = get_latent_action_gaussian(
-        action, latent_state, train_state=train_state
+        action, latent_state, net_state=net_state, train_config=train_config
     )
 
     rng, key = jax.random.split(key)
@@ -108,19 +112,21 @@ def encode_action(
     return latent_action
 
 
-def get_state_space_gaussian(latent_state, train_state: TrainState):
-    state_gaussian = train_state.train_config.state_decoder.apply(
-        train_state.net_state.state_decoder_params,
+def get_state_space_gaussian(
+    latent_state, net_state: NetState, train_config: TrainConfig
+):
+    state_gaussian = train_config.state_decoder.apply(
+        net_state.state_decoder_params,
         latent_state,
     )
 
     # Clamp the variance to at least 1e-6
     clamped_variance = jnp.clip(
-        state_gaussian[..., train_state.train_config.latent_state_dim :], 1e-6, None
+        state_gaussian[..., train_config.latent_state_dim :], 1e-6, None
     )
     state_gaussian = jnp.concatenate(
         [
-            state_gaussian[..., : train_state.train_config.latent_state_dim],
+            state_gaussian[..., : train_config.latent_state_dim],
             clamped_variance,
         ],
         axis=-1,
@@ -129,8 +135,10 @@ def get_state_space_gaussian(latent_state, train_state: TrainState):
     return state_gaussian
 
 
-def decode_state(key, latent_state, train_state: TrainState):
-    state_space_gaussian = get_state_space_gaussian(latent_state, train_state)
+def decode_state(key, latent_state, net_state: NetState, train_config: TrainConfig):
+    state_space_gaussian = get_state_space_gaussian(
+        latent_state, net_state, train_config
+    )
 
     rng, key = jax.random.split(key)
     state = sample_gaussian(rng, state_space_gaussian)
@@ -141,21 +149,20 @@ def decode_state(key, latent_state, train_state: TrainState):
 def get_action_space_gaussian(
     latent_action,
     latent_state,
-    train_state: TrainState,
+    net_state: NetState,
+    train_config: TrainConfig,
 ):
-    action_gaussian = train_state.train_config.action_decoder.apply(
-        train_state.net_state.action_decoder_params,
+    action_gaussian = train_config.action_decoder.apply(
+        net_state.action_decoder_params,
         latent_action,
         latent_state,
     )
 
     # Clamp the variance to at least 1e-6
-    clamped_variance = (
-        action_gaussian[..., train_state.train_config.latent_action_dim :] + 1e-6
-    )
+    clamped_variance = action_gaussian[..., train_config.latent_action_dim :] + 1e-6
     action_gaussian = jnp.concatenate(
         [
-            action_gaussian[..., : train_state.train_config.latent_action_dim],
+            action_gaussian[..., : train_config.latent_action_dim],
             clamped_variance,
         ],
         axis=-1,
@@ -164,11 +171,14 @@ def get_action_space_gaussian(
     return action_gaussian
 
 
-def decode_action(key, latent_action, latent_state, train_state: TrainState):
+def decode_action(
+    key, latent_action, latent_state, net_state: NetState, train_config: TrainConfig
+):
     action_space_gaussian = get_action_space_gaussian(
         latent_action,
         latent_state,
-        train_state,
+        net_state,
+        train_config,
     )
 
     rng, key = jax.random.split(key)
@@ -180,24 +190,23 @@ def decode_action(key, latent_action, latent_state, train_state: TrainState):
 def get_latent_state_prime_gaussians(
     latent_start_state,
     latent_actions,
-    train_state: TrainState,
+    net_state: NetState,
+    train_config: TrainConfig,
     current_action_i=0,
 ):
-    next_state_gaussian = train_state.train_config.transition_model.apply(
-        train_state.net_state.transition_model_params,
+    next_state_gaussian = train_config.transition_model.apply(
+        net_state.transition_model_params,
         latent_start_state,
         latent_actions,
-        jnp.arange(latent_actions.shape[0]) * train_state.train_config.env_config.dt,
+        jnp.arange(latent_actions.shape[0]) * train_config.env_config.dt,
         current_action_i,
     )
 
     # Clamp the variance to at least 1e-6
-    clamped_variance = (
-        next_state_gaussian[..., train_state.train_config.latent_state_dim :] + 1e-6
-    )
+    clamped_variance = next_state_gaussian[..., train_config.latent_state_dim :] + 1e-6
     latent_state_prime_gaussians = jnp.concatenate(
         [
-            next_state_gaussian[..., : train_state.train_config.latent_state_dim],
+            next_state_gaussian[..., : train_config.latent_state_dim],
             clamped_variance,
         ],
         axis=-1,
@@ -210,13 +219,15 @@ def infer_states(
     key,
     latent_start_state,
     latent_actions,
-    train_state: TrainState,
+    net_state: NetState,
+    train_config: TrainConfig,
     current_action_i=0,
 ):
     latent_state_prime_gaussians = get_latent_state_prime_gaussians(
         latent_start_state,
         latent_actions,
-        train_state,
+        net_state,
+        train_config,
         current_action_i,
     )
 

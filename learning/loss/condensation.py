@@ -1,4 +1,4 @@
-from ..train_state import TrainState
+from ..train_state import TrainConfig, NetState
 
 from infos import Infos
 
@@ -17,14 +17,21 @@ import jax
 from jax import numpy as jnp
 
 
-def loss_condensation(key, states, actions, train_state: TrainState):
+def loss_condensation(
+    key,
+    states,
+    actions,
+    net_state: NetState,
+    train_config: TrainConfig,
+):
     """Comutes the condensation loss for a set of states and actions.
 
     Args:
         key (PRNGKey): Random seed to calculate the loss.
         states (array): An (n x s) array of n states with dim s
         actions (array): An (n x a) array of n actions with dim a
-        train_state (TrainState): The current training state.
+        net_state (NetState): The network weights to use.
+        train_config (TrainConfig): The training config.
 
     Returns:
         (scalar, Info): A tuple containing the loss value and associated info object.
@@ -35,7 +42,8 @@ def loss_condensation(key, states, actions, train_state: TrainState):
     latent_states = jax.vmap(
         jax.tree_util.Partial(
             encode_state,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
         )
     )(
         key=rngs,
@@ -46,7 +54,8 @@ def loss_condensation(key, states, actions, train_state: TrainState):
     latent_actions = jax.vmap(
         jax.tree_util.Partial(
             encode_action,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
         )
     )(
         key=rngs,
@@ -57,11 +66,9 @@ def loss_condensation(key, states, actions, train_state: TrainState):
     state_radii = jnp.linalg.norm(latent_states, ord=1, axis=-1)
     action_radii = jnp.linalg.norm(latent_actions, ord=1, axis=-1)
 
-    state_radius_violations = jnp.maximum(
-        0.0, state_radii - train_state.train_config.state_radius
-    )
+    state_radius_violations = jnp.maximum(0.0, state_radii - train_config.state_radius)
     action_radius_violations = jnp.maximum(
-        0.0, action_radii - train_state.train_config.action_radius
+        0.0, action_radii - train_config.action_radius
     )
 
     state_radius_violation_log = jnp.log(state_radius_violations + 1e-6)

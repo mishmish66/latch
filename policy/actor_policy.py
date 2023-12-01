@@ -1,6 +1,6 @@
 from policy.optimizer_policy import OptimizerPolicy
 
-from learning.train_state import TrainState
+from learning.train_state import TrainState, NetState, TrainConfig
 
 from nets.inference import (
     encode_state,
@@ -28,7 +28,8 @@ class ActorPolicy(OptimizerPolicy):
         latent_actions,
         latent_start_state,
         aux,
-        train_state: TrainState,
+        net_state: NetState,
+        train_config: TrainConfig,
         current_action_i=0,
     ):
         target_q = aux
@@ -49,7 +50,9 @@ class ActorPolicy(OptimizerPolicy):
             rng, key = jax.random.split(key)
             rngs = jax.random.split(rng, latent_states.shape[0])
             states = jax.vmap(
-                jax.tree_util.Partial(decode_state, train_state=train_state)
+                jax.tree_util.Partial(
+                    decode_state, net_state=net_state, train_config=train_config
+                )
             )(
                 key=rngs,
                 latent_state=latent_states,
@@ -57,7 +60,9 @@ class ActorPolicy(OptimizerPolicy):
             rng, key = jax.random.split(key)
             rngs = jax.random.split(rng, latent_actions.shape[0])
             actions = jax.vmap(
-                jax.tree_util.Partial(decode_action, train_state=train_state)
+                jax.tree_util.Partial(
+                    decode_action, net_state=net_state, train_config=train_config
+                )
             )(
                 key=rngs,
                 latent_action=latent_actions,
@@ -71,7 +76,9 @@ class ActorPolicy(OptimizerPolicy):
             key=rng,
             latent_start_state=latent_start_state,
             latent_actions=latent_actions,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
+            current_action_i=current_action_i,
         )
         latent_states = jnp.concatenate(
             [latent_start_state[None], latent_states_prime], axis=0

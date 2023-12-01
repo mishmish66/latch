@@ -1,4 +1,4 @@
-from learning.train_state import TrainState
+from learning.train_state import NetState, TrainConfig
 
 from policy.policy import Policy
 
@@ -16,7 +16,8 @@ def collect_single_rollout(
     start_state,
     policy: Policy,
     policy_aux,
-    train_state: TrainState,
+    net_state: NetState,
+    train_config: TrainConfig,
 ):
     """Collects a single rollout of physics data.
 
@@ -24,7 +25,8 @@ def collect_single_rollout(
         key (PRNGKey): Random seed to use to for the rollout.
         start_state (array): a (s,) array of the starting state.
         policy (Policy): The policy to use to collect the rollout.
-        train_state (TrainState): The current training state.
+        net_state (NetState): The current network state.
+        train_config (TrainConfig): The training configuration.
 
     Returns:
         ((array, array), Infos, array): A tuple of a (t x s) array of states and a (t-1 x a) array of actions and the Infos from collecting them and then an (n x d) array of the dense states between substeps for rendering.
@@ -32,7 +34,11 @@ def collect_single_rollout(
 
     rng, key = jax.random.split(key)
     init_policy_carry, init_policy_info = policy.make_init_carry(
-        key=rng, start_state=start_state, aux=policy_aux, train_state=train_state
+        key=rng,
+        start_state=start_state,
+        aux=policy_aux,
+        net_state=net_state,
+        train_config=train_config,
     )
 
     # Collect a rollout of physics data
@@ -46,15 +52,16 @@ def collect_single_rollout(
             state=state,
             i=i,
             carry=policy_carry,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
         )
         action = jnp.clip(
             action,
-            a_min=train_state.train_config.env_config.action_bounds[..., 0],
-            a_max=train_state.train_config.env_config.action_bounds[..., -1],
+            a_min=train_config.env_config.action_bounds[..., 0],
+            a_max=train_config.env_config.action_bounds[..., -1],
         )
-        next_state, dense_states = train_state.train_config.env_cls.step(
-            state, action, train_state.train_config.env_config
+        next_state, dense_states = train_config.env_cls.step(
+            state, action, train_config.env_config
         )
 
         return (next_state, i + 1, policy_carry), (
@@ -64,7 +71,7 @@ def collect_single_rollout(
         )
 
     rng, key = jax.random.split(key)
-    scan_rngs = jax.random.split(rng, train_state.train_config.rollout_length - 1)
+    scan_rngs = jax.random.split(rng, train_config.rollout_length - 1)
     _, ((states, actions), dense_states, policy_info) = jax.lax.scan(
         scanf,
         (start_state, 0, init_policy_carry),
@@ -84,7 +91,8 @@ def collect_rollout_batch(
     start_state,
     policy: Policy,
     policy_auxs,
-    train_state: TrainState,
+    net_state: NetState,
+    train_config: TrainConfig,
     batch_size,
 ):
     """Collects a batch of rollouts of physics data.
@@ -105,7 +113,8 @@ def collect_rollout_batch(
         jax.tree_util.Partial(
             collect_single_rollout,
             start_state=start_state,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
             policy=policy,
         )
     )(

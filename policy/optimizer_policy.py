@@ -2,7 +2,7 @@ from policy.policy import Policy
 
 from infos import Infos
 
-from learning.train_state import TrainState
+from learning.train_state import NetState, TrainConfig
 
 from nets.inference import (
     encode_state,
@@ -32,7 +32,8 @@ def optimize_actions(
     initial_guess,
     aux,
     cost_func,
-    train_state: TrainState,
+    net_state: NetState,
+    train_config: TrainConfig,
     start_state_idx=0,
     big_step_size=0.5,
     big_steps=512,
@@ -57,12 +58,14 @@ def optimize_actions(
     Returns:
         (array, (array, array)): A tuple containing the optimized latent actions and a tuple of (costs, big_active_inds) where costs is the cost of each plan during the optimization and big_active_inds is the indices that the algorithm changed during the big steps.
     """
-    horizon = train_state.train_config.rollout_length
+    horizon = train_config.rollout_length
 
     causal_mask = make_mask(horizon, start_state_idx)
 
     rng, key = jax.random.split(key)
-    latent_start_state = encode_state(rng, start_state, train_state)
+    latent_start_state = encode_state(
+        rng, start_state, net_state=net_state, train_config=train_config
+    )
 
     def big_scanf(current_plan, key):
         rng, key = jax.random.split(key)
@@ -72,8 +75,10 @@ def optimize_actions(
                 cost_func,
                 key=rng,
                 latent_start_state=latent_start_state,
-                train_state=train_state,
+                net_state=net_state,
+                train_config=train_config,
                 aux=aux,
+                current_action_i=start_state_idx,
             )(latent_actions=current_plan)
 
         cost, act_grad = jax.value_and_grad(cost_for_grad)(current_plan)
@@ -86,8 +91,7 @@ def optimize_actions(
 
         new_columns = current_plan - big_step_size * normalized_grad_columns
         new_column_is_in_space = (
-            jnp.linalg.norm(new_columns, ord=1, axis=-1)
-            < train_state.train_config.action_radius
+            jnp.linalg.norm(new_columns, ord=1, axis=-1) < train_config.action_radius
         )
         safe_column_norms = column_norms * new_column_is_in_space
 
@@ -111,7 +115,8 @@ def optimize_actions(
                 cost_func,
                 key=rng,
                 latent_start_state=latent_start_state,
-                train_state=train_state,
+                net_state=net_state,
+                train_config=train_config,
                 aux=aux,
                 current_action_i=start_state_idx,
             )(latent_actions=current_plan)
@@ -123,11 +128,11 @@ def optimize_actions(
         next_plan = current_plan - small_step_size * act_grad_future
 
         next_plan_norms = jnp.linalg.norm(next_plan, ord=1, axis=-1)
-        next_plan_is_in_space = next_plan_norms < train_state.train_config.action_radius
+        next_plan_is_in_space = next_plan_norms < train_config.action_radius
         clip_scale = jnp.where(
             next_plan_is_in_space,
             jnp.ones_like(next_plan_norms),
-            next_plan_norms / train_state.train_config.action_radius,
+            next_plan_norms / train_config.action_radius,
         )
         next_plan_clipped = next_plan / clip_scale[..., None]
 
@@ -173,31 +178,11 @@ class OptimizerPolicy(Policy):
         latent_actions,
         latent_start_state,
         aux,
-        train_state: TrainState,
+        net_state: NetState,
+        train_config: TrainConfig,
         current_action_i=0,
     ):
         raise NotImplementedError("Must be implemented by subclass.")
-
-    # def tree_flatten(self):
-    #     children = [self.big_step_size, self.small_step_size, self.aux_cost_params]
-    #     aux_data = {
-    #         "big_steps": self.big_steps,
-    #         "small_steps": self.small_steps,
-    #         "big_post_steps": self.big_post_steps,
-    #         "small_post_steps": self.small_post_steps,
-    #     }
-
-    #     return children, aux_data
-
-    # @classmethod
-    # def tree_unflatten(cls, aux_data, children):
-    #     big_step_size, small_step_size, aux_cost_params = children
-    #     return cls(
-    #         big_step_size=big_step_size,
-    #         small_step_size=small_step_size,
-    #         aux_cost_params=aux_cost_params,
-    #         **aux_data,
-    #     )
 
     @classmethod
     def init(
@@ -226,17 +211,18 @@ class OptimizerPolicy(Policy):
         key,
         start_state,
         aux,
-        train_state: TrainState,
+        net_state: NetState,
+        train_config: TrainConfig,
     ):
         rng, key = jax.random.split(key)
         random_latent_actions = (
             jax.random.ball(
                 rng,
-                d=train_state.train_config.latent_action_dim,
+                d=train_config.latent_action_dim,
                 p=1,
-                shape=[train_state.train_config.rollout_length],
+                shape=[train_config.rollout_length],
             )
-            * train_state.train_config.action_radius
+            * train_config.action_radius
         )
 
         rng, key = jax.random.split(key)
@@ -246,7 +232,8 @@ class OptimizerPolicy(Policy):
             initial_guess=random_latent_actions,
             aux=aux,
             cost_func=self.cost_func,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
             start_state_idx=0,
             big_step_size=self.big_step_size,
             big_steps=self.big_steps,
@@ -267,7 +254,9 @@ class OptimizerPolicy(Policy):
 
         return (optimized_actions, aux), infos
 
-    def __call__(self, key, state, i, carry, train_state: TrainState):
+    def __call__(
+        self, key, state, i, carry, net_state: NetState, train_config: TrainConfig
+    ):
         last_guess, aux = carry
 
         rng, key = jax.random.split(key)
@@ -277,7 +266,8 @@ class OptimizerPolicy(Policy):
             initial_guess=last_guess,
             aux=aux,
             cost_func=self.cost_func,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
             start_state_idx=i,
             big_steps=self.big_post_steps,
             small_steps=self.small_post_steps,
@@ -285,7 +275,9 @@ class OptimizerPolicy(Policy):
 
         latent_action = next_guess[i]
         rng_0, rng_1, key = jax.random.split(key, 3)
-        latent_state = encode_state(rng_0, state, train_state)
-        action = decode_action(rng_1, latent_action, latent_state, train_state)
+        latent_state = encode_state(rng_0, state, net_state, train_config)
+        action = decode_action(
+            rng_1, latent_action, latent_state, net_state, train_config
+        )
 
         return action, (next_guess, aux), Infos.init()

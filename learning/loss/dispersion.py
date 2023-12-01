@@ -1,4 +1,4 @@
-from learning.train_state import TrainState
+from learning.train_state import TrainState, TrainConfig, NetState
 
 from infos import Infos
 
@@ -17,14 +17,17 @@ import jax
 from jax import numpy as jnp
 
 
-def loss_dispersion(key, states, actions, train_state: TrainState, num_samples=8):
+def loss_dispersion(
+    key, states, actions, net_state: NetState, train_config: TrainConfig, num_samples=8
+):
     """Computes the dispersion loss for a set of states and actions.
 
     Args:
         key (PRNGKey): Random seed to calculate the loss.
         states (array): An (n x s) array of n states with dim s
         actions (array): An (n x a) array of n actions with dim a
-        train_state (TrainState): The current training state.
+        net_state (NetState): The network weights to use.
+        train_config (TrainState): The training config.
         num_samples (int, optional): The number of states to sample from the batch to compute the loss for pairwise. Defaults to 8.
 
     Returns:
@@ -36,7 +39,8 @@ def loss_dispersion(key, states, actions, train_state: TrainState, num_samples=8
     latent_states = jax.vmap(
         jax.tree_util.Partial(
             encode_state,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
         )
     )(
         key=rngs,
@@ -47,7 +51,8 @@ def loss_dispersion(key, states, actions, train_state: TrainState, num_samples=8
     latent_actions = jax.vmap(
         jax.tree_util.Partial(
             encode_action,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
         )
     )(
         key=rngs,

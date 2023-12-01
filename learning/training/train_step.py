@@ -33,18 +33,19 @@ def train_step(
     """
 
     # Isolate just the net state from the train state
-    def loss_for_grad(key, net_state: NetState) -> Infos:
-        updated_train_state = train_state.replace(net_state=net_state)
-
+    def loss_for_grad(key, primary_net_state: NetState) -> Infos:
         rng, key = jax.random.split(key)
         losses, infos = Losses.compute(
             rng,
             states=states,
             actions=actions,
-            train_state=updated_train_state,
+            net_state=primary_net_state,
+            train_config=train_state.train_config,
         )
 
-        scaled_gated_losses, loss_infos = losses.scale_gate_info(train_state)
+        scaled_gated_losses, loss_infos = losses.scale_gate_info(
+            train_state.train_config
+        )
 
         infos = Infos.merge(infos, loss_infos)
 
@@ -52,9 +53,11 @@ def train_step(
 
     # Get the gradients
     rng, key = jax.random.split(key)
-    grads_loss_obj, (loss_infos) = jax.jacrev(loss_for_grad, argnums=1, has_aux=True)(
-        rng, train_state.net_state
-    )
+    grads_loss_obj, (loss_infos) = jax.jacrev(
+        loss_for_grad,
+        argnums=1,
+        has_aux=True,
+    )(rng, train_state.primary_net_state)
 
     # Find the magnitude of each gradient for logging
     def compute_net_grad_norm(grads_net_obj: NetState):

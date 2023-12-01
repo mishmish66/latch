@@ -1,4 +1,4 @@
-from learning.train_state import TrainState
+from learning.train_state import NetState, TrainConfig
 
 import jax
 from jax import numpy as jnp
@@ -19,11 +19,16 @@ class PolicyNoiseWrapper:
         key,
         start_state,
         aux,
-        train_state: TrainState,
+        net_state: NetState,
+        train_config: TrainConfig,
     ):
         variances, wrapped_aux = aux
         init_carry, info = self.wrapped_policy.make_init_carry(
-            key=key, start_state=start_state, aux=wrapped_aux, train_state=train_state
+            key=key,
+            start_state=start_state,
+            aux=wrapped_aux,
+            net_state=net_state,
+            train_config=train_config,
         )
 
         return (init_carry, variances), info
@@ -34,7 +39,8 @@ class PolicyNoiseWrapper:
         state,
         i,
         carry,
-        train_state: TrainState,
+        net_state: NetState,
+        train_config: TrainConfig,
     ):
         carry, variances = carry
         rng, key = jax.random.split(key)
@@ -43,7 +49,8 @@ class PolicyNoiseWrapper:
             state=state,
             i=i,
             carry=carry,
-            train_state=train_state,
+            net_state=net_state,
+            train_config=train_config,
         )
 
         rng, key = jax.random.split(key)

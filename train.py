@@ -28,12 +28,6 @@ from pathlib import Path
 import os
 import time
 
-# # Profiling stuff
-# from pympler import muppy
-# from memory_profiler import profile
-
-# ##############################
-
 seed = 0
 
 # Generate random key
@@ -42,7 +36,7 @@ checkpoint_dir = Path("checkpoints")
 
 checkpointer = ocp.PyTreeCheckpointer()
 
-learning_rate = float(1e-5)
+learning_rate = float(5e-5)
 every_k = 1
 
 env_cls = Finger
@@ -73,7 +67,7 @@ train_config = TrainConfig.init(
     state_encoder=StateEncoder(latent_state_dim=latent_state_dim),
     action_encoder=ActionEncoder(latent_action_dim=latent_action_dim),
     transition_model=TransitionModel(
-        latent_state_dim=latent_state_dim, n_layers=8, latent_dim=256, heads=8
+        latent_state_dim=latent_state_dim, n_layers=8, latent_dim=64, heads=4
     ),
     state_decoder=StateDecoder(state_dim=env_config.state_dim),
     action_decoder=ActionDecoder(act_dim=env_config.act_dim),
@@ -82,11 +76,12 @@ train_config = TrainConfig.init(
     env_config=env_config,
     env_cls=env_cls,
     seed=seed,
+    target_net_tau=0.005,
     rollouts=256,
     epochs=128,
-    batch_size=64,
+    batch_size=32,
     every_k=every_k,
-    traj_per_rollout=1024,
+    traj_per_rollout=256,
     rollout_length=64,
     state_radius=1.375,
     action_radius=2.0,
@@ -148,7 +143,8 @@ def eval_model(key, train_state, i):
     _, infos, dense_states = eval_batch_actor(
         key=rng,
         start_state=env_cls.init(),
-        train_state=train_state,
+        net_state=train_state.target_net_state,
+        train_config=train_state.train_config,
     )
 
     infos.dump_to_wandb(train_state)

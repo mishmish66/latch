@@ -39,6 +39,8 @@ class TrainConfig:
     rollout_length: int
     seed: int
 
+    target_net_tau: any
+
     state_radius: any
     action_radius: any
 
@@ -83,6 +85,7 @@ class TrainConfig:
         env_config: EnvConfig,
         env_cls: Env,
         seed,
+        target_net_tau=0.05,
         rollouts=1024,
         epochs=128,
         batch_size=256,
@@ -125,6 +128,7 @@ class TrainConfig:
             env_config=env_config,
             env_cls=env_cls,
             seed=seed,
+            target_net_tau=target_net_tau,
             rollouts=rollouts,
             epochs=epochs,
             batch_size=batch_size,
@@ -162,6 +166,7 @@ class TrainConfig:
             "latent_action_dim": self.latent_action_dim,
             "traj_per_rollout": self.traj_per_rollout,
             "seed": self.seed,
+            "target_net_tau": self.target_net_tau,
             "rollouts": self.rollouts,
             "epochs": self.epochs,
             "batch_size": self.batch_size,
@@ -205,6 +210,7 @@ class TrainConfig:
             "env_config": self.env_config,
             "env_cls": self.env_cls,
             "seed": self.seed,
+            "target_net_tau": self.target_net_tau,
             "rollouts": self.rollouts,
             "epochs": self.epochs,
             "batch_size": self.batch_size,
@@ -250,6 +256,7 @@ class TrainConfig:
             env_config=aux["env_config"],
             env_cls=aux["env_cls"],
             seed=aux["seed"],
+            target_net_tau=aux["target_net_tau"],
             rollouts=aux["rollouts"],
             epochs=aux["epochs"],
             batch_size=aux["batch_size"],

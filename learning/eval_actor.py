@@ -4,7 +4,7 @@ from jax.tree_util import register_pytree_node
 
 from einops import rearrange
 
-from learning.train_state import TrainState
+from learning.train_state import NetState, TrainConfig
 
 from nets.inference import (
     encode_state,
@@ -28,7 +28,8 @@ from jax.tree_util import Partial
 def eval_single_actor(
     key,
     start_state,
-    train_state: TrainState,
+    net_state: NetState,
+    train_config: TrainConfig,
     target_q=1.0,
     big_step_size=0.5,
     big_steps=2048,
@@ -42,7 +43,8 @@ def eval_single_actor(
     Args:
         key (PRNGKey): The random seed to use for the rollout.
         start_state (array): The starting state.
-        train_state (TrainState): The current training state.
+        net_state (NetState): The current network state.
+        train_config (TrainConfig): The training configuration.
         target_q (float, optional): The angle of the knob to go for. Defaults to 1.0.
         big_step_size (float, optional): The big step size. Defaults to 0.5.
         big_steps (int, optional): The number of initial big steps. Defaults to 2048.
@@ -68,7 +70,8 @@ def eval_single_actor(
         start_state=start_state,
         policy=policy,
         policy_aux=policy_aux,
-        train_state=train_state,
+        net_state=net_state,
+        train_config=train_config,
     )
 
     def cost_func(state):
@@ -89,7 +92,8 @@ def eval_single_actor(
 def eval_batch_actor(
     key,
     start_state,
-    train_state: TrainState,
+    net_state: NetState,
+    train_config: TrainConfig,
     eval_count=64,
     target_q=1.0,
     big_step_size=0.5,
@@ -104,7 +108,8 @@ def eval_batch_actor(
     Args:
         key (PRNGKey): The random seed to use for the rollout.
         start_state (array): The starting state.
-        train_state (TrainState): The current training state.
+        net_state (NetState): The network weights.
+        train_config (TrainConfig): The training configuration.
         eval_count (int, optional): The number of eval trajectories to collect. Defaults to 64.
         target_q (float, optional): The target angle of the knob to go for. Defaults to 1.0.
         big_step_size (float, optional): The big step size. Defaults to 0.5.
@@ -120,7 +125,8 @@ def eval_batch_actor(
     partial_eval_single_actor = Partial(
         eval_single_actor,
         start_state=start_state,
-        train_state=train_state,
+        net_state=net_state,
+        train_config=train_config,
         target_q=target_q,
         big_step_size=big_step_size,
         big_steps=big_steps,
