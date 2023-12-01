@@ -10,6 +10,7 @@ from nets.inference import (
     infer_states,
     get_latent_state_prime_gaussians,
     eval_log_gaussian,
+    make_mask,
 )
 
 from jax.tree_util import register_pytree_node_class, Partial
@@ -28,6 +29,7 @@ class ActorPolicy(OptimizerPolicy):
         latent_start_state,
         aux,
         train_state: TrainState,
+        current_action_i=0,
     ):
         target_q = aux
 
@@ -36,10 +38,14 @@ class ActorPolicy(OptimizerPolicy):
 
             return state_cost
 
-        def traj_cost_func(states, actions):
-            return jnp.mean(jax.vmap(cost_func)(states))
+        def traj_cost_func(states, actions, current_action_i):
+            costs = jax.vmap(cost_func)(states)
+            causal_mask = make_mask(len(costs), current_action_i)
+            future_costs = jnp.where(causal_mask, costs, 0.0)
 
-        def latent_traj_cost_func(key, latent_states, latent_actions):
+            return jnp.mean(future_costs)
+
+        def latent_traj_cost_func(key, latent_states, latent_actions, current_action_i):
             rng, key = jax.random.split(key)
             rngs = jax.random.split(rng, latent_states.shape[0])
             states = jax.vmap(
@@ -58,7 +64,7 @@ class ActorPolicy(OptimizerPolicy):
                 latent_state=latent_states,
             )
 
-            return jnp.sum(traj_cost_func(states, actions))
+            return jnp.sum(traj_cost_func(states, actions, current_action_i))
 
         rng, key = jax.random.split(key)
         latent_states_prime = infer_states(
@@ -71,7 +77,9 @@ class ActorPolicy(OptimizerPolicy):
             [latent_start_state[None], latent_states_prime], axis=0
         )[:-1]
 
-        return latent_traj_cost_func(key, latent_states, latent_actions)
+        return latent_traj_cost_func(
+            key, latent_states, latent_actions, current_action_i
+        )
 
     @staticmethod
     def make_aux(target_q):
