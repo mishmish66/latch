@@ -4,7 +4,7 @@ import jax
 
 from jax import numpy as jnp
 
-from jax.tree_util import register_pytree_node_class
+from jax.tree_util import register_pytree_node_class, Partial
 from jax.experimental.host_callback import id_tap
 
 import wandb
@@ -113,18 +113,16 @@ class Infos:
             plain_infos=plain_infos,
         )
 
-    def host_get_dict(self):
+    def host_get_dict(self, prefix=None):
         """Turns the Infos object into a single dict"""
-
-        def remove_nan(tree):
-            return jax.tree_map(lambda x: x[jnp.isnan(x) == False], tree)
 
         result_dict = {
             **self.plain_infos,
             **self.loss_infos,
-            # **remove_nan(self.plain_infos),
-            # **remove_nan(self.loss_infos),
         }
+
+        if prefix is not None:
+            result_dict = {f"{prefix}/{k}": v for k, v in result_dict.items()}
 
         return result_dict
 
@@ -155,18 +153,27 @@ class Infos:
             ),
         )
 
-    def host_dump_to_wandb(self, step=None):
+    def host_dump_to_wandb(self, step=None, prefix=None):
         """Dumps the infos object to wandb (to be called from the host)."""
         if step is not None:
             print(f"Logging 🪵 for step {step}")
-            wandb.log(self.host_get_dict(), step=step)
+            wandb.log(self.host_get_dict(prefix), step=step)
         else:
-            wandb.log(self.host_get_dict())
+            wandb.log(self.host_get_dict(prefix))
 
-    def dump_to_wandb(self, train_state: TrainState):
+    @Partial(jax.jit, static_argnames=["prefix"])
+    def dump_to_wandb(self, train_state: TrainState, prefix=None):
         """Dumps the infos object to wandb (to be called from the device)."""
         step = train_state.step
-        id_tap(lambda arg, _: Infos.host_dump_to_wandb(*arg), (self, step))
+
+        def dump_to_wandb_for_tap(tap_pack, transforms):
+            self, step = tap_pack
+            Infos.host_dump_to_wandb(self, step, prefix)
+
+        id_tap(
+            dump_to_wandb_for_tap,
+            (self, step),
+        )
 
     def host_get_str(self, step=None):
         """Gets a string representation of the infos object (to be called from the host)."""
