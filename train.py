@@ -49,13 +49,13 @@ env_cls = Finger
 
 env_config = env_cls.get_config()
 
-schedule = learning_rate  # optax.cosine_onecycle_schedule(
-#     transition_steps=4096,
-#     peak_value=learning_rate,
-#     pct_start=0.125,
-#     div_factor=5.0,
-#     final_div_factor=5.0,
-# )
+schedule = optax.cosine_onecycle_schedule(
+    transition_steps=4096,
+    peak_value=learning_rate,
+    pct_start=0.125,
+    div_factor=5.0,
+    final_div_factor=5.0,
+)
 
 latent_state_dim = 6
 latent_action_dim = 2
@@ -84,9 +84,9 @@ train_config = TrainConfig.init(
     seed=seed,
     rollouts=64,
     epochs=128,
-    batch_size=32,
+    batch_size=128,
     every_k=every_k,
-    traj_per_rollout=256,
+    traj_per_rollout=1024,
     rollout_length=64,
     state_radius=1.375,
     action_radius=2.0,
@@ -95,7 +95,7 @@ train_config = TrainConfig.init(
     smoothness_weight=1.0,
     condensation_weight=1.0,
     dispersion_weight=1.0,
-    forward_gate_sharpness=256,
+    forward_gate_sharpness=2048,
     smoothness_gate_sharpness=256,
     dispersion_gate_sharpness=1,
     condensation_gate_sharpness=1,
@@ -118,7 +118,7 @@ wandb.init(
 if os.path.exists(checkpoint_dir):
     # If it exists wait 3 seconds and then delete it (iterate counter in console for 3 seconds)
     for i in range(3, 0, -1):
-        print(f"🚀 Preparing to delete old checkpoints in {i} second(s)...", end=None)
+        print(f"⏲️ Preparing to delete old checkpoints in {i} second(s)...", end=None)
         time.sleep(1)
         print("\r", end=None)
     print("\n🧹 Clearing old checkpoints...")
@@ -168,7 +168,7 @@ def save_and_eval_model(key, train_state, i):
     eval_model(key, train_state, i)
 
 
-print("Starting Train Loop 🤓")
+print("Starting Training Loop 🤓")
 
 save_and_eval_every = 4
 
