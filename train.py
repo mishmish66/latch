@@ -153,9 +153,9 @@ print("Starting Train Loop 🤓")
 save_and_eval_every = 4
 
 
-@profile
+# @profile
 def train_loop(train_state, x_pack):
-    muppy.print_summary()
+    # muppy.print_summary()
 
     i, key = x_pack
 
