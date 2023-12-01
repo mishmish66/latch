@@ -186,13 +186,10 @@ class Losses:
             self.condensation_loss * train_config.condensation_weight
         )
 
-        # TODO: revisit this
-        # I'm going to remove the forward gate for now to see what happens
-        # okay that worked really well, let's get rid of the other gates too
-        scaled_gated_forward_loss = scaled_forward_loss  # * forward_gate
-        scaled_gated_smoothness_loss = scaled_smoothness_loss  # * smoothness_gate
-        scaled_gated_dispersion_loss = scaled_dispersion_loss  # * dispersion_gate
-        scaled_gated_condensation_loss = scaled_condensation_loss  # * condensation_gate
+        scaled_gated_forward_loss = scaled_forward_loss * forward_gate
+        scaled_gated_smoothness_loss = scaled_smoothness_loss * smoothness_gate
+        scaled_gated_dispersion_loss = scaled_dispersion_loss * dispersion_gate
+        scaled_gated_condensation_loss = scaled_condensation_loss * condensation_gate
 
         total_loss = (
             scaled_reconstruction_loss
