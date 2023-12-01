@@ -158,7 +158,7 @@ class Infos:
     def host_dump_to_wandb(self, step=None):
         """Dumps the infos object to wandb (to be called from the host)."""
         if step is not None:
-            print(f"Logging for step {step} 🪵")
+            print(f"Logging 🪵 for step {step}")
             wandb.log(self.host_get_dict(), step=step)
         else:
             wandb.log(self.host_get_dict())
