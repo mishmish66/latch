@@ -110,7 +110,7 @@ wandb.init(
 # Check if dir exists
 if os.path.exists(checkpoint_dir):
     # If it exists wait 3 seconds and then delete it (iterate counter in console for 3 seconds)
-    for i in range(3, 0, -1):
+    for i in [3, 2, 1, 0]:
         print(f"⏲️ Preparing to delete old checkpoints in {i} second(s)...", end="\r")
         sys.stdout.flush()
         time.sleep(1)
@@ -164,7 +164,7 @@ def save_and_eval_model(key, train_state, i):
 
 def print_rollout_msg_for_tap(tap_pack, transforms):
     i = tap_pack
-    print(f"\nRollout 🛺 {i}")
+    print(f"Rollout 🛺 {i}")
 
 
 print("Starting Training Loop 🤓")
