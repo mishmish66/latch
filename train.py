@@ -36,7 +36,7 @@ checkpoint_dir = Path("checkpoints")
 
 checkpointer = ocp.PyTreeCheckpointer()
 
-learning_rate = float(1e-4)
+learning_rate = float(1e-3)
 every_k = 1
 
 env_cls = Finger
@@ -53,11 +53,11 @@ train_config = TrainConfig.init(
         optax.clip_by_global_norm(1.0),
         optax.lion(
             learning_rate=optax.cosine_onecycle_schedule(
-                transition_steps=8192,
+                transition_steps=16384,
                 peak_value=learning_rate,
                 pct_start=0.3,
-                div_factor=25.0,
-                final_div_factor=4.0,
+                div_factor=10.0,
+                final_div_factor=100.0,
             )
         ),
     ),
@@ -110,9 +110,8 @@ wandb.init(
 if os.path.exists(checkpoint_dir):
     # If it exists wait 3 seconds and then delete it (iterate counter in console for 3 seconds)
     for i in range(3, 0, -1):
-        print(f"⏲️ Preparing to delete old checkpoints in {i} second(s)...", end=None)
+        print(f"⏲️ Preparing to delete old checkpoints in {i} second(s)...", end="\r")
         time.sleep(1)
-        print("\r", end=None)
     print("\n🧹 Clearing old checkpoints...")
 
     shutil.rmtree(checkpoint_dir)
@@ -170,7 +169,7 @@ save_and_eval_every = 4
 def train_loop(train_state, x_pack):
     i, key = x_pack
 
-    jax.debug.print("Rollout 🛺 {i}", i=i)
+    jax.debug.print("\nRollout 🛺 {i}", i=i)
 
     is_every = i % save_and_eval_every == 0
     jax.lax.cond(
