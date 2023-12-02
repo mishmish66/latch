@@ -96,16 +96,16 @@ def loss_forward(key, states, actions, net_state: NetState, train_config: TrainC
         future_mask = make_mask(len(latent_next_states), start_state_idx)
 
         state_errors_to_gt = latent_next_states - latent_next_states_prime
-        forward_state_square_errors = jnp.square(state_errors_to_gt)
+        forward_state_abs_errors = jnp.abs(state_errors_to_gt)
 
-        future_forward_state_log_square_errors = einsum(
-            forward_state_square_errors, future_mask, "t ..., t -> t ..."
+        future_forward_state_abs_errors = einsum(
+            forward_state_abs_errors, future_mask, "t ..., t -> t ..."
         )
-        total_loss = jnp.mean(future_forward_state_log_square_errors)
+        total_future_mae = jnp.mean(future_forward_state_abs_errors)
 
         infos = Infos.init()
 
-        return total_loss, infos
+        return total_future_mae, infos
 
     rng, key = jax.random.split(key)
     start_state_idxs = jax.random.randint(
