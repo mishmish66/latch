@@ -48,7 +48,7 @@ schedule = optax.cosine_onecycle_schedule(
     peak_value=learning_rate,
     pct_start=0.3,
     div_factor=25.0,
-    final_div_factor=25.0,
+    final_div_factor=1000.0,
 )
 
 latent_state_dim = 6
@@ -59,7 +59,7 @@ train_config = TrainConfig.init(
     optimizer=optax.MultiSteps(
         optax.chain(
             optax.zero_nans(),
-            optax.clip_by_global_norm(1e12),
+            optax.clip_by_global_norm(1e5),
             optax.lion(learning_rate=learning_rate),
         ),
         every_k_schedule=every_k,
@@ -67,7 +67,7 @@ train_config = TrainConfig.init(
     state_encoder=StateEncoder(latent_state_dim=latent_state_dim),
     action_encoder=ActionEncoder(latent_action_dim=latent_action_dim),
     transition_model=TransitionModel(
-        latent_state_dim=latent_state_dim, n_layers=8, latent_dim=64, heads=4
+        latent_state_dim=latent_state_dim, n_layers=3, latent_dim=64, heads=4
     ),
     state_decoder=StateDecoder(state_dim=env_config.state_dim),
     action_decoder=ActionDecoder(act_dim=env_config.act_dim),
