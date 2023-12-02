@@ -83,12 +83,12 @@ def loss_reconstruction(
         latent_action=latent_actions,
     )
 
-    state_mse = jnp.mean(jnp.square(states - reconstructed_states))
-    action_mse = jnp.mean(jnp.square(actions - reconstructed_actions))
-    reconstruction_loss = state_mse + action_mse
+    state_mae = jnp.mean(jnp.abs(states - reconstructed_states))
+    action_mae = jnp.mean(jnp.abs(actions - reconstructed_actions))
+    reconstruction_loss = state_mae + action_mae
 
     infos = Infos.init()
-    infos = infos.add_plain_info("state_reconstruction_loss", state_mse)
-    infos = infos.add_plain_info("action_reconstruction_loss", action_mse)
+    infos = infos.add_plain_info("state_reconstruction_loss", state_mae)
+    infos = infos.add_plain_info("action_reconstruction_loss", action_mae)
 
     return reconstruction_loss, infos
