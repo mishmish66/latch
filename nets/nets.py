@@ -36,16 +36,18 @@ class StateEncoder(nn.Module):
     latent_state_dim: any
 
     def setup(self):
-        self.freq_layer = FreqLayer(out_dim=128)
+        self.freq_layer = FreqLayer(out_dim=1024)
 
         self.dense_layers = [
             nn.Dense(dim, name=f"FC{i}")
             for i, dim in enumerate(
                 [
-                    64,
-                    32,
-                    32,
-                    32,
+                    1024,
+                    1024,
+                    512,
+                    512,
+                    256,
+                    256,
                     self.latent_state_dim * 2,
                 ]
             )
@@ -70,19 +72,26 @@ class StateDecoder(nn.Module):
     state_dim: any
 
     def setup(self):
+        self.freq_layer = FreqLayer(out_dim=1024)
+
         self.dense_layers = [
             nn.Dense(d, name=f"FC{i}")
             for i, d in enumerate(
                 [
-                    128,
-                    64,
-                    64,
+                    1024,
+                    1024,
+                    512,
+                    512,
+                    256,
+                    256,
                     self.state_dim * 2,
                 ]
             )
         ]
 
     def __call__(self, x) -> Any:
+        x = self.freq_layer(x)
+
         for layer in self.dense_layers[:-1]:
             x = layer(x)
             x = nn.relu(x)
@@ -98,16 +107,18 @@ class ActionEncoder(nn.Module):
     latent_action_dim: any
 
     def setup(self):
-        self.freq_layer = FreqLayer(out_dim=64)
+        self.freq_layer = FreqLayer(out_dim=1024)
 
         self.dense_layers = [
             nn.Dense(dim, name=f"FC{i}")
             for i, dim in enumerate(
                 [
-                    64,
-                    64,
-                    32,
-                    32,
+                    1024,
+                    1024,
+                    512,
+                    512,
+                    256,
+                    256,
                     self.latent_action_dim * 2,
                 ]
             )
@@ -134,15 +145,18 @@ class ActionDecoder(nn.Module):
     act_dim: any
 
     def setup(self):
+        self.freq_layer = FreqLayer(out_dim=1024)
+
         self.dense_layers = [
             nn.Dense(d, name=f"FC{i}")
             for i, d in enumerate(
                 [
-                    128,
-                    128,
-                    64,
-                    64,
-                    8,
+                    1024,
+                    1024,
+                    512,
+                    512,
+                    256,
+                    256,
                     self.act_dim * 2,
                 ]
             )
@@ -150,6 +164,7 @@ class ActionDecoder(nn.Module):
 
     def __call__(self, latent_action, latent_state) -> Any:
         x = jnp.concatenate([latent_action, latent_state], axis=-1)
+        x = self.freq_layer(x)
         for layer in self.dense_layers[:-1]:
             x = layer(x)
             x = nn.relu(x)
