@@ -26,6 +26,7 @@ import wandb
 import shutil
 from pathlib import Path
 import os
+import sys
 import time
 
 seed = 0
@@ -111,6 +112,7 @@ if os.path.exists(checkpoint_dir):
     # If it exists wait 3 seconds and then delete it (iterate counter in console for 3 seconds)
     for i in range(3, 0, -1):
         print(f"⏲️ Preparing to delete old checkpoints in {i} second(s)...", end="\r")
+        sys.stdout.flush()
         time.sleep(1)
     print("\n🧹 Clearing old checkpoints...")
 
@@ -160,6 +162,11 @@ def save_and_eval_model(key, train_state, i):
     eval_model(key, train_state, i)
 
 
+def print_rollout_msg_for_tap(tap_pack, transforms):
+    i = tap_pack
+    print(f"\nRollout 🛺 {i}")
+
+
 print("Starting Training Loop 🤓")
 
 save_and_eval_every = 4
@@ -169,7 +176,7 @@ save_and_eval_every = 4
 def train_loop(train_state, x_pack):
     i, key = x_pack
 
-    jax.debug.print("\nRollout 🛺 {i}", i=i)
+    id_tap(print_rollout_msg_for_tap, i)
 
     is_every = i % save_and_eval_every == 0
     jax.lax.cond(
