@@ -36,33 +36,30 @@ checkpoint_dir = Path("checkpoints")
 
 checkpointer = ocp.PyTreeCheckpointer()
 
-learning_rate = float(1e-4)
+learning_rate = float(1.0)
 every_k = 1
 
 env_cls = Finger
 
 env_config = env_cls.get_config()
 
-schedule = optax.cosine_onecycle_schedule(
-    transition_steps=4096,
-    peak_value=learning_rate,
-    pct_start=0.3,
-    div_factor=25.0,
-    final_div_factor=1000.0,
-)
-
 latent_state_dim = 6
 latent_action_dim = 2
 
 train_config = TrainConfig.init(
     learning_rate=learning_rate,
-    optimizer=optax.MultiSteps(
-        optax.chain(
-            optax.zero_nans(),
-            optax.clip_by_global_norm(1e5),
-            optax.lion(learning_rate=learning_rate),
+    optimizer=optax.chain(
+        optax.zero_nans(),
+        optax.clip_by_global_norm(1e5),
+        optax.lion(
+            learning_rate=optax.cosine_onecycle_schedule(
+                transition_steps=8192,
+                peak_value=learning_rate,
+                pct_start=0.3,
+                div_factor=25.0,
+                final_div_factor=10000.0,
+            )
         ),
-        every_k_schedule=every_k,
     ),
     state_encoder=StateEncoder(latent_state_dim=latent_state_dim),
     action_encoder=ActionEncoder(latent_action_dim=latent_action_dim),
