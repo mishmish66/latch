@@ -83,6 +83,10 @@ class NetState:
             self.action_decoder_params,
         ]
 
+    @classmethod
+    def from_list(cls, l):
+        return cls(*l)
+
 
 @register_pytree_node_class
 @dataclass

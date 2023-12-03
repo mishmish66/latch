@@ -51,7 +51,6 @@ train_config = TrainConfig.init(
     learning_rate=learning_rate,
     optimizer=optax.chain(
         optax.zero_nans(),
-        optax.clip_by_global_norm(1.0),
         optax.lion(
             learning_rate=optax.cosine_onecycle_schedule(
                 transition_steps=16384,
@@ -65,7 +64,7 @@ train_config = TrainConfig.init(
     state_encoder=StateEncoder(latent_state_dim=latent_state_dim),
     action_encoder=ActionEncoder(latent_action_dim=latent_action_dim),
     transition_model=TransitionModel(
-        latent_state_dim=latent_state_dim, n_layers=3, latent_dim=64, heads=4
+        latent_state_dim=latent_state_dim, n_layers=8, latent_dim=64, heads=4
     ),
     state_decoder=StateDecoder(state_dim=env_config.state_dim),
     action_decoder=ActionDecoder(act_dim=env_config.act_dim),

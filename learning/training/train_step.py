@@ -81,12 +81,25 @@ def train_step(
     )
     grads_loss_obj = grads_loss_obj.replace(forward_loss=swapped_forward_loss_grad)
 
-    # Find the magnitude of each gradient for logging
-    def compute_net_grad_norm(grads_net_obj: NetState):
+    cumulative_grad = jax.tree_map(
+        lambda *x: jnp.sum(jnp.stack(x), axis=0),
+        *grads_loss_obj.to_list(),
+    )
+
+    # Here let's normalize the gradients for each network
+    def compute_net_grad_norm(grads_net_obj):
         flat_grads, _ = tree_flatten(grads_net_obj)
         flat = jnp.concatenate([jnp.ravel(x) for x in flat_grads])
-        norm = jnp.linalg.norm(flat)
+        nan_filtered_flat = jnp.nan_to_num(flat)
+        norm = jnp.linalg.norm(nan_filtered_flat)
         return norm
+
+    normalized_grads = NetState.from_list(
+        [
+            net_grad / jnp.nan_to_num(net_grad)
+            for net_grad in cumulative_grad.from_list()
+        ]
+    )
 
     # Find the proportion of nans for logging
     def compute_nan_proportion(grads_net_obj: NetState):
@@ -136,11 +149,6 @@ def train_step(
         compute_nan_proportion(grads_loss_obj.condensation_loss),
     )
 
-    cumulative_grad = jax.tree_map(
-        lambda *x: jnp.sum(jnp.stack(x), axis=0),
-        *grads_loss_obj.to_list(),
-    )
-
     # Find the magnitude of the whole gradient together
     total_grad_norm = compute_net_grad_norm(cumulative_grad)
     total_nan_proportion = compute_nan_proportion(cumulative_grad)
@@ -171,9 +179,6 @@ def train_step(
 
     loss_infos.dump_to_wandb(train_state=train_state)
 
-    # This was clogging up the console and slowing down training
-    # loss_infos.dump_to_console(train_state=train_state)
-
-    train_state = train_state.apply_gradients(cumulative_grad)
+    train_state = train_state.apply_gradients(normalized_grads)
 
     return train_state
