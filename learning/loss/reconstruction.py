@@ -5,14 +5,16 @@ from infos import Infos
 from nets.inference import (
     encode_state,
     encode_action,
-    decode_state,
-    decode_action,
+    eval_log_gaussian,
+    get_state_space_gaussian,
+    get_action_space_gaussian,
     infer_states,
     sample_gaussian,
 )
 
 import jax
 from jax import numpy as jnp
+from jax.scipy.stats.norm import pdf as gaussian_pdf
 
 
 def loss_reconstruction(
@@ -57,42 +59,88 @@ def loss_reconstruction(
         latent_state=latent_states,
     )
 
-    rng, key = jax.random.split(key)
-    rngs = jax.random.split(rng, len(actions))
-    reconstructed_states = jax.vmap(
+    # rng, key = jax.random.split(key)
+    # rngs = jax.random.split(rng, len(actions))
+    # reconstructed_states = jax.vmap(
+    #     jax.tree_util.Partial(
+    #         decode_state,
+    #         net_state=net_state,
+    #         train_config=train_config,
+    #     )
+    # )(
+    #     key=rngs,
+    #     latent_state=latent_states,
+    # )
+    # rng, key = jax.random.split(key)
+    # rngs = jax.random.split(rng, len(actions))
+    # reconstructed_actions = jax.vmap(
+    #     jax.tree_util.Partial(
+    #         decode_action,
+    #         net_state=net_state,
+    #         train_config=train_config,
+    #     )
+    # )(
+    #     key=rngs,
+    #     latent_state=latent_states,
+    #     latent_action=latent_actions,
+    # )
+
+    # # I'm defining this weird loss function to keep a gradient near 0 but also have a large gradient when the error is large.
+    # def mean_sq_log_error(result, gt):
+    #     errors = jnp.abs(result - gt)
+    #     sq_errors = jnp.square(errors)
+    #     log_errors = (jnp.log(10 * errors) + 1) / 10
+    #     pieced = jnp.maximum(sq_errors, log_errors)
+    #     return jnp.mean(pieced)
+
+    # state_loss = mean_sq_log_error(reconstructed_states, states)
+    # action_loss = mean_sq_log_error(reconstructed_actions, actions)
+
+    # reconstruction_loss = state_loss + action_loss
+
+    state_space_gaussian = jax.vmap(
         jax.tree_util.Partial(
-            decode_state,
+            get_state_space_gaussian,
             net_state=net_state,
             train_config=train_config,
         )
     )(
-        key=rngs,
         latent_state=latent_states,
     )
-    rng, key = jax.random.split(key)
-    rngs = jax.random.split(rng, len(actions))
-    reconstructed_actions = jax.vmap(
+    action_space_gaussian = jax.vmap(
         jax.tree_util.Partial(
-            decode_action,
+            get_action_space_gaussian,
             net_state=net_state,
             train_config=train_config,
         )
     )(
-        key=rngs,
         latent_state=latent_states,
         latent_action=latent_actions,
     )
 
-    # I'm defining this weird loss function to keep a gradient near 0 but also have a large gradient when the error is large.
-    def mean_sq_log_error(result, gt):
-        errors = jnp.abs(result - gt)
-        sq_errors = jnp.square(errors)
-        log_errors = (jnp.log(10 * errors) + 1) / 10
-        pieced = jnp.maximum(sq_errors, log_errors)
-        return jnp.mean(pieced)
+    # Add to the variance to prevent numerical issues
+    state_space_gaussian = state_space_gaussian.at[
+        ..., train_config.latent_state_dim :
+    ].add(1e-6)
+    action_space_gaussian = action_space_gaussian.at[
+        ..., train_config.latent_action_dim :
+    ].add(1e-6)
 
-    state_loss = mean_sq_log_error(reconstructed_states, states)
-    action_loss = mean_sq_log_error(reconstructed_actions, actions)
+    state_probs = jax.vmap(
+        eval_log_gaussian,
+    )(
+        gaussian=state_space_gaussian,
+        point=states,
+    )
+    action_probs = jax.vmap(
+        eval_log_gaussian,
+    )(
+        gaussian=action_space_gaussian,
+        point=actions,
+    )
+
+    state_loss = -jnp.mean(state_probs)
+    action_loss = -jnp.mean(action_probs)
 
     reconstruction_loss = state_loss + action_loss
 

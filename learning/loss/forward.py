@@ -5,13 +5,9 @@ from infos import Infos
 from nets.inference import (
     encode_state,
     encode_action,
-    decode_state,
-    decode_action,
-    infer_states,
-    sample_gaussian,
-    get_neighborhood_states,
-    get_neighborhood_actions,
+    get_latent_state_prime_gaussians,
     make_mask,
+    eval_log_gaussian,
 )
 
 import jax
@@ -84,8 +80,7 @@ def loss_forward(key, states, actions, net_state: NetState, train_config: TrainC
         )
 
         rng, key = jax.random.split(key)
-        latent_next_states_prime = infer_states(
-            key=rng,
+        latent_next_state_prime_gaussians = get_latent_state_prime_gaussians(
             latent_start_state=latent_start_state,
             latent_actions=latent_actions,
             net_state=net_state,
@@ -95,14 +90,26 @@ def loss_forward(key, states, actions, net_state: NetState, train_config: TrainC
 
         future_mask = make_mask(len(latent_next_states), start_state_idx)
 
-        diffs = latent_next_states - latent_next_states_prime
-        forward_state_abs_errors = jnp.linalg.norm(diffs, ord=1, axis=-1)
+        # diffs = latent_next_states - latent_next_states_prime
+        # forward_state_abs_errors = jnp.linalg.norm(diffs, ord=1, axis=-1)
 
-        square_errs = jnp.square(forward_state_abs_errors)
-        log_errs = jnp.log(forward_state_abs_errors) + 1.0
-        pieced_loss = jnp.maximum(square_errs, log_errs)
+        # square_errs = jnp.square(forward_state_abs_errors)
+        # log_errs = jnp.log(forward_state_abs_errors) + 1.0
+        # pieced_loss = jnp.maximum(square_errs, log_errs)
 
-        future_pieced_loss = einsum(pieced_loss, future_mask, "t ..., t -> t ...")
+        # Add to the covariances to prevent numerical instability
+        latent_next_state_prime_gaussians = latent_next_state_prime_gaussians.at[
+            ..., train_config.latent_state_dim :
+        ].add(1e-6)
+
+        future_probs = jax.vmap(eval_log_gaussian)(
+            latent_next_state_prime_gaussians,
+            latent_next_states,
+        )
+
+        future_pieced_loss = -1.0 * einsum(
+            future_probs, future_mask, "t ..., t -> t ..."
+        )
         mean_future_pieced_loss = jnp.mean(future_pieced_loss)
 
         infos = Infos.init()

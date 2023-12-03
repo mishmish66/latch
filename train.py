@@ -52,13 +52,13 @@ train_config = TrainConfig.init(
     optimizer=optax.chain(
         optax.zero_nans(),
         optax.lion(
-            learning_rate=optax.cosine_onecycle_schedule(
-                transition_steps=16384,
-                peak_value=learning_rate,
-                pct_start=0.3,
-                div_factor=10.0,
-                final_div_factor=1.0,
-            )
+            learning_rate=learning_rate  # optax.cosine_onecycle_schedule(
+            #     transition_steps=16384,
+            #     peak_value=learning_rate,
+            #     pct_start=0.3,
+            #     div_factor=10.0,
+            #     final_div_factor=1.0,
+            # )
         ),
     ),
     state_encoder=StateEncoder(latent_state_dim=latent_state_dim),
@@ -87,7 +87,7 @@ train_config = TrainConfig.init(
     smoothness_weight=1.0,
     condensation_weight=50.0,
     dispersion_weight=1.0,
-    forward_gate_sharpness=256,
+    forward_gate_sharpness=2048,
     smoothness_gate_sharpness=1,
     dispersion_gate_sharpness=1,
     condensation_gate_sharpness=1e-6,
