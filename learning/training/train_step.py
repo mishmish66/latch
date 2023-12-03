@@ -96,8 +96,8 @@ def train_step(
 
     normalized_grads = NetState.from_list(
         [
-            net_grad / jnp.nan_to_num(net_grad)
-            for net_grad in cumulative_grad.from_list()
+            net_grad / compute_net_grad_norm(net_grad)
+            for net_grad in cumulative_grad.to_list()
         ]
     )
 
