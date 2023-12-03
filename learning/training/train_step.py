@@ -96,7 +96,7 @@ def train_step(
 
     normalized_grads = NetState.from_list(
         [
-            net_grad / compute_net_grad_norm(net_grad)
+            scale_grad(net_grad, 1 / compute_net_grad_norm(net_grad))
             for net_grad in cumulative_grad.to_list()
         ]
     )
