@@ -185,7 +185,6 @@ class TemporalEncoder(nn.Module):
 
     def __call__(self, x, time) -> Any:
         d = x.shape[-1]
-        indices = jnp.arange(d)
 
         # Compute frequencies
         freqs = jnp.logspace(

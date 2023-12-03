@@ -37,7 +37,7 @@ checkpoint_dir = Path("checkpoints")
 
 checkpointer = ocp.PyTreeCheckpointer()
 
-learning_rate = float(1e-3)
+learning_rate = float(1e-4)
 every_k = 1
 
 env_cls = Finger
@@ -58,7 +58,7 @@ train_config = TrainConfig.init(
                 peak_value=learning_rate,
                 pct_start=0.3,
                 div_factor=10.0,
-                final_div_factor=100.0,
+                final_div_factor=1.0,
             )
         ),
     ),
@@ -77,9 +77,9 @@ train_config = TrainConfig.init(
     target_net_tau=0.005,
     rollouts=256,
     epochs=128,
-    batch_size=32,
+    batch_size=64,
     every_k=every_k,
-    traj_per_rollout=256,
+    traj_per_rollout=512,
     rollout_length=64,
     state_radius=1.375,
     action_radius=2.0,

@@ -84,15 +84,15 @@ def loss_reconstruction(
     )
 
     # I'm defining this weird loss function to keep a gradient near 0 but also have a large gradient when the error is large.
-    def mean_max_sq_log_error(result, gt):
+    def mean_sq_log_error(result, gt):
         errors = jnp.abs(result - gt)
         sq_errors = jnp.square(errors)
-        log_errors = jnp.log(errors + 1.0)
-        maxxed = jnp.maximum(sq_errors, log_errors)
-        return jnp.mean(maxxed)
+        log_errors = (jnp.log(10 * errors) + 1) / 10
+        pieced = jnp.maximum(sq_errors, log_errors)
+        return jnp.mean(pieced)
 
-    state_loss = mean_max_sq_log_error(reconstructed_states, states)
-    action_loss = mean_max_sq_log_error(reconstructed_actions, actions)
+    state_loss = mean_sq_log_error(reconstructed_states, states)
+    action_loss = mean_sq_log_error(reconstructed_actions, actions)
 
     reconstruction_loss = state_loss + action_loss
 

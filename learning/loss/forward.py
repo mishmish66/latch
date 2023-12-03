@@ -95,28 +95,19 @@ def loss_forward(key, states, actions, net_state: NetState, train_config: TrainC
 
         future_mask = make_mask(len(latent_next_states), start_state_idx)
 
-        def max_square_log_error(y, gt):
-            err = jnp.abs(y - gt)
-            sq_err = jnp.square(y)
-            log_err = jnp.log(err + 1.0)
-            max_log_sq_err = jnp.maximum(sq_err, log_err)
-            return max_log_sq_err
-
         diffs = latent_next_states - latent_next_states_prime
         forward_state_abs_errors = jnp.linalg.norm(diffs, ord=1, axis=-1)
 
         square_errs = jnp.square(forward_state_abs_errors)
-        log_errs = jnp.log(forward_state_abs_errors + 1.0)
-        max_log_sq_errs = jnp.maximum(square_errs, log_errs)
+        log_errs = jnp.log(forward_state_abs_errors) + 1.0
+        pieced_loss = jnp.maximum(square_errs, log_errs)
 
-        future_max_log_sq_errs = einsum(
-            max_log_sq_errs, future_mask, "t ..., t -> t ..."
-        )
-        mean_future_log_sq_err = jnp.mean(future_max_log_sq_errs)
+        future_pieced_loss = einsum(pieced_loss, future_mask, "t ..., t -> t ...")
+        mean_future_pieced_loss = jnp.mean(future_pieced_loss)
 
         infos = Infos.init()
 
-        return mean_future_log_sq_err, infos
+        return mean_future_pieced_loss, infos
 
     rng, key = jax.random.split(key)
     start_state_idxs = jax.random.randint(
