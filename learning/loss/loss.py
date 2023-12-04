@@ -266,4 +266,4 @@ class Losses:
 
 def make_gate_value(x, sharpness, center):
     sgx = jax.lax.stop_gradient(x)
-    return (1 + jnp.exp(sharpness * (sgx - center))) ** (-1 / 16)
+    return (1 + jnp.exp(sharpness * (sgx - center))) ** -1
