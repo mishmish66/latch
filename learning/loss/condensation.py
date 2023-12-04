@@ -71,8 +71,11 @@ def loss_condensation(
         0.0, action_radii - train_config.action_radius
     )
 
-    state_radius_violation_log = jnp.log(state_radius_violations + 1e-6)
-    action_radius_violation_log = jnp.log(action_radius_violations + 1e-6)
+    def sq_p_log(x):
+        return jnp.square(x) + jnp.log(x + 1e-6)
+
+    state_radius_violation_log = sq_p_log(state_radius_violations)
+    action_radius_violation_log = sq_p_log(action_radius_violations)
 
     state_radius_violation_loss = jnp.mean(state_radius_violation_log)
     action_radius_violation_loss = jnp.mean(action_radius_violation_log)
