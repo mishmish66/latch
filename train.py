@@ -74,6 +74,7 @@ train_config = TrainConfig.init(
     env_cls=env_cls,
     seed=seed,
     target_net_tau=0.05,
+    transition_factor=100.0,
     rollouts=256,
     epochs=256,
     batch_size=32,

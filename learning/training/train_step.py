@@ -101,6 +101,14 @@ def train_step(
         ]
     )
 
+    # For the transition model though, we want to scale it a bit higher
+    normalized_grads = normalized_grads.replace(
+        transition_model_params=scale_grad(
+            normalized_grads.transition_model_params,
+            train_state.train_config.transition_factor,
+        )
+    )
+
     # Find the proportion of nans for logging
     def compute_nan_proportion(grads_net_obj: NetState):
         flat_grads, _ = tree_flatten(grads_net_obj)
