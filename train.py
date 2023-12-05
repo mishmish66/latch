@@ -92,8 +92,8 @@ train_config = TrainConfig.init(
     dispersion_gate_sharpness=1,
     condensation_gate_sharpness=1,
     forward_gate_center=-15,
-    smoothness_gate_center=-9,
-    dispersion_gate_center=-9,
+    smoothness_gate_center=-3,
+    dispersion_gate_center=-3,
     condensation_gate_center=-15,
 )
 

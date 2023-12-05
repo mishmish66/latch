@@ -175,14 +175,18 @@ class Losses:
             train_config.forward_gate_sharpness,
             train_config.forward_gate_center,
         )
-        condensation_gate = make_gate_value(
-            self.state_reconstruction_loss,
-            train_config.condensation_gate_sharpness,
-            train_config.condensation_gate_center,
-        ) * make_gate_value(
-            self.action_reconstruction_loss,
-            train_config.condensation_gate_sharpness,
-            train_config.condensation_gate_center,
+        condensation_gate = (
+            make_gate_value(
+                self.forward_loss,
+                train_config.condensation_gate_sharpness,
+                train_config.condensation_gate_center,
+            )
+            * make_gate_value(
+                self.forward_loss,
+                train_config.condensation_gate_sharpness,
+                train_config.condensation_gate_center,
+            )
+            * forward_gate
         )
         smoothness_gate = (
             make_gate_value(
