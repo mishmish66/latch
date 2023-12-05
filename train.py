@@ -82,19 +82,19 @@ train_config = TrainConfig.init(
     rollout_length=64,
     state_radius=1.25,
     action_radius=2.0,
-    reconstruction_weight=0.1,
+    reconstruction_weight=1.0,
     forward_weight=1.0,
     smoothness_weight=1.0,
     condensation_weight=10.0,
-    dispersion_weight=10.0,
+    dispersion_weight=100.0,
     forward_gate_sharpness=1,
     smoothness_gate_sharpness=1,
     dispersion_gate_sharpness=1,
     condensation_gate_sharpness=1,
-    forward_gate_center=-9,
+    forward_gate_center=-14,
     smoothness_gate_center=-9,
     dispersion_gate_center=-9,
-    condensation_gate_center=-14,
+    condensation_gate_center=-16,
 )
 
 rng, key = jax.random.split(key)
@@ -168,7 +168,7 @@ def print_rollout_msg_for_tap(tap_pack, transforms):
 
 print("Starting Training Loop 🤓")
 
-save_and_eval_every = 4
+save_and_eval_every = 1
 
 
 # @profile
