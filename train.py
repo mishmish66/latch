@@ -57,7 +57,7 @@ train_config = TrainConfig.init(
                 peak_value=learning_rate,
                 pct_start=0.3,
                 div_factor=10.0,
-                final_div_factor=10.0,
+                final_div_factor=0.25,
             )
         ),
     ),
@@ -82,7 +82,7 @@ train_config = TrainConfig.init(
     rollout_length=64,
     state_radius=1.25,
     action_radius=2.0,
-    reconstruction_weight=0.1,
+    reconstruction_weight=1.0,
     forward_weight=1.0,
     smoothness_weight=1.0,
     condensation_weight=10.0,
@@ -91,10 +91,10 @@ train_config = TrainConfig.init(
     smoothness_gate_sharpness=1,
     dispersion_gate_sharpness=1,
     condensation_gate_sharpness=1,
-    forward_gate_center=-9,
+    forward_gate_center=-16,
     smoothness_gate_center=-9,
     dispersion_gate_center=-9,
-    condensation_gate_center=-14,
+    condensation_gate_center=-16,
 )
 
 rng, key = jax.random.split(key)
