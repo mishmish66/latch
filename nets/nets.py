@@ -43,11 +43,11 @@ class StateEncoder(nn.Module):
             for i, dim in enumerate(
                 [
                     1024,
-                    1024,
+                    # 1024,
                     512,
-                    512,
+                    # 512,
                     256,
-                    256,
+                    # 256,
                     self.latent_state_dim * 2,
                 ]
             )
@@ -79,11 +79,11 @@ class StateDecoder(nn.Module):
             for i, d in enumerate(
                 [
                     1024,
-                    1024,
+                    # 1024,
                     512,
-                    512,
+                    # 512,
                     256,
-                    256,
+                    # 256,
                     self.state_dim * 2,
                 ]
             )
@@ -114,11 +114,11 @@ class ActionEncoder(nn.Module):
             for i, dim in enumerate(
                 [
                     1024,
-                    1024,
+                    # 1024,
                     512,
-                    512,
+                    # 512,
                     256,
-                    256,
+                    # 256,
                     self.latent_action_dim * 2,
                 ]
             )
@@ -152,11 +152,11 @@ class ActionDecoder(nn.Module):
             for i, d in enumerate(
                 [
                     1024,
-                    1024,
+                    # 1024,
                     512,
-                    512,
+                    # 512,
                     256,
-                    256,
+                    # 256,
                     self.act_dim * 2,
                 ]
             )
