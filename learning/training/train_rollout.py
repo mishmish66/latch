@@ -40,7 +40,7 @@ def train_rollout(key, train_state: TrainState):
     random_vector_norms = jnp.linalg.norm(random_vectors, ord=1, axis=-1)
     unit_norm_samples = random_vectors / random_vector_norms[..., None]
 
-    target_states = unit_norm_samples * train_state.train_config.state_radius * 1.25
+    target_states = unit_norm_samples * train_state.train_config.state_radius * 1.1
 
     policy = PolicyNoiseWrapper(FinderPolicy.init())
     policy_auxes = jax.vmap(
