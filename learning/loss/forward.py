@@ -100,7 +100,7 @@ def loss_forward(key, states, actions, net_state: NetState, train_config: TrainC
         # Add to the covariances to prevent numerical instability
         latent_next_state_prime_gaussians = latent_next_state_prime_gaussians.at[
             ..., train_config.latent_state_dim :
-        ].add(1e-6)
+        ].add(1e-10)
 
         future_probs = jax.vmap(eval_log_gaussian)(
             latent_next_state_prime_gaussians,

@@ -82,10 +82,10 @@ def loss_reconstruction(
     # Add to the variance to prevent numerical issues
     state_space_gaussian = state_space_gaussian.at[
         ..., train_config.latent_state_dim :
-    ].add(1e-6)
+    ].add(1e-10)
     action_space_gaussian = action_space_gaussian.at[
         ..., train_config.latent_action_dim :
-    ].add(1e-6)
+    ].add(1e-10)
 
     state_probs = jax.vmap(
         eval_log_gaussian,
