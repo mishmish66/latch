@@ -54,7 +54,7 @@ class StateEncoder(nn.Module):
         ]
 
     def __call__(self, x) -> Any:
-        x = self.freq_layer(x)
+        # x = self.freq_layer(x)
 
         for layer in self.dense_layers[:-1]:
             x = layer(x)
@@ -90,7 +90,7 @@ class StateDecoder(nn.Module):
         ]
 
     def __call__(self, x) -> Any:
-        x = self.freq_layer(x)
+        # x = self.freq_layer(x)
 
         for layer in self.dense_layers[:-1]:
             x = layer(x)
@@ -125,7 +125,7 @@ class ActionEncoder(nn.Module):
         ]
 
     def __call__(self, action, latent_state) -> Any:
-        freq_action = self.freq_layer(action)
+        freq_action = action  # self.freq_layer(action)
         x = jnp.concatenate([freq_action, latent_state], axis=-1)
 
         for layer in self.dense_layers[:-1]:
@@ -164,7 +164,7 @@ class ActionDecoder(nn.Module):
 
     def __call__(self, latent_action, latent_state) -> Any:
         x = jnp.concatenate([latent_action, latent_state], axis=-1)
-        x = self.freq_layer(x)
+        # x = self.freq_layer(x)
         for layer in self.dense_layers[:-1]:
             x = layer(x)
             x = nn.relu(x)
