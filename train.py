@@ -53,11 +53,11 @@ train_config = TrainConfig.init(
         optax.zero_nans(),
         optax.lion(
             learning_rate=optax.cosine_onecycle_schedule(
-                transition_steps=8192,
+                transition_steps=11000,
                 peak_value=learning_rate,
                 pct_start=0.3,
                 div_factor=10.0,
-                final_div_factor=0.25,
+                final_div_factor=10.0,
             )
         ),
     ),
