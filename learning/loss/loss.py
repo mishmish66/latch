@@ -181,11 +181,6 @@ class Losses:
                 train_config.condensation_gate_sharpness,
                 train_config.condensation_gate_center,
             )
-            * make_gate_value(
-                self.forward_loss,
-                train_config.condensation_gate_sharpness,
-                train_config.condensation_gate_center,
-            )
             * forward_gate
         )
         smoothness_gate = (
