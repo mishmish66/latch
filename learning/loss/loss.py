@@ -20,7 +20,8 @@ from dataclasses import dataclass
 @register_pytree_node_class
 @dataclass
 class Losses:
-    reconstruction_loss: any
+    state_reconstruction_loss: any
+    action_reconstruction_loss: any
     forward_loss: any
     smoothness_loss: any
     dispersion_loss: any
@@ -29,14 +30,16 @@ class Losses:
     @classmethod
     def init(
         cls,
-        reconstruction_loss=0,
+        state_reconstruction_loss=0,
+        action_reconstruction_loss=0,
         forward_loss=0,
         smoothness_loss=0,
         dispersion_loss=0,
         condensation_loss=0,
     ):
         return cls(
-            reconstruction_loss=reconstruction_loss,
+            state_reconstruction_loss=state_reconstruction_loss,
+            action_reconstruction_loss=action_reconstruction_loss,
             forward_loss=forward_loss,
             smoothness_loss=smoothness_loss,
             dispersion_loss=dispersion_loss,
@@ -94,7 +97,10 @@ class Losses:
             net_state=net_state,
             train_config=train_config,
         )
-        reconstruction_loss, reconstruction_info = loss_reconstruction(
+        (
+            state_reconstruction_loss,
+            action_reconstruction_loss,
+        ), reconstruction_info = loss_reconstruction(
             key=key,
             states=flat_states,
             actions=flat_actions,
@@ -103,7 +109,8 @@ class Losses:
         )
 
         losses = Losses.init(
-            reconstruction_loss=reconstruction_loss,
+            state_reconstruction_loss=state_reconstruction_loss,
+            action_reconstruction_loss=action_reconstruction_loss,
             forward_loss=forward_loss,
             smoothness_loss=smoothness_loss,
             dispersion_loss=dispersion_loss,
@@ -122,7 +129,8 @@ class Losses:
 
     def tree_flatten(self):
         return [
-            self.reconstruction_loss,
+            self.state_reconstruction_loss,
+            self.action_reconstruction_loss,
             self.forward_loss,
             self.smoothness_loss,
             self.dispersion_loss,
@@ -132,17 +140,23 @@ class Losses:
     @classmethod
     def tree_unflatten(cls, aux, data):
         return cls.init(
-            reconstruction_loss=data[0],
-            forward_loss=data[1],
-            smoothness_loss=data[2],
-            dispersion_loss=data[3],
-            condensation_loss=data[4],
+            state_reconstruction_loss=data[0],
+            action_reconstruction_loss=data[1],
+            forward_loss=data[2],
+            smoothness_loss=data[3],
+            dispersion_loss=data[4],
+            condensation_loss=data[5],
         )
 
     @classmethod
     def merge(cls, *losses):
         return cls.init(
-            reconstruction_loss=jnp.sum([l.reconstruction_loss for l in losses]),
+            state_reconstruction_loss=jnp.sum(
+                [l.state_reconstruction_loss for l in losses]
+            ),
+            action_reconstruction_loss=jnp.sum(
+                [l.action_reconstruction_loss for l in losses]
+            ),
             forward_loss=jnp.sum([l.forward_loss for l in losses]),
             smoothness_loss=jnp.sum([l.smoothness_loss for l in losses]),
             dispersion_loss=jnp.sum([l.dispersion_loss for l in losses]),
@@ -153,12 +167,20 @@ class Losses:
         infos = Infos.init()
 
         forward_gate = make_gate_value(
-            self.reconstruction_loss,
+            self.state_reconstruction_loss,
+            train_config.forward_gate_sharpness,
+            train_config.forward_gate_center,
+        ) * make_gate_value(
+            self.action_reconstruction_loss,
             train_config.forward_gate_sharpness,
             train_config.forward_gate_center,
         )
         condensation_gate = make_gate_value(
-            self.reconstruction_loss,
+            self.state_reconstruction_loss,
+            train_config.condensation_gate_sharpness,
+            train_config.condensation_gate_center,
+        ) * make_gate_value(
+            self.action_reconstruction_loss,
             train_config.condensation_gate_sharpness,
             train_config.condensation_gate_center,
         )
@@ -181,8 +203,11 @@ class Losses:
             * condensation_gate
         )
 
-        scaled_reconstruction_loss = (
-            self.reconstruction_loss * train_config.reconstruction_weight
+        scaled_state_reconstruction_loss = (
+            self.state_reconstruction_loss * train_config.reconstruction_weight
+        )
+        scaled_action_reconstruction_loss = (
+            self.action_reconstruction_loss * train_config.reconstruction_weight
         )
         scaled_forward_loss = self.forward_loss * train_config.forward_weight
         scaled_smoothness_loss = self.smoothness_loss * train_config.smoothness_weight
@@ -192,7 +217,8 @@ class Losses:
         )
 
         total_loss = (
-            scaled_reconstruction_loss
+            scaled_state_reconstruction_loss
+            + scaled_action_reconstruction_loss
             + scaled_forward_loss
             + scaled_smoothness_loss
             + scaled_dispersion_loss
@@ -201,7 +227,12 @@ class Losses:
 
         infos = infos.add_loss_info("total_loss", total_loss)
 
-        infos = infos.add_loss_info("reconstruction_loss", self.reconstruction_loss)
+        infos = infos.add_loss_info(
+            "state_reconstruction_loss", self.state_reconstruction_loss
+        )
+        infos = infos.add_loss_info(
+            "action_reconstruction_loss", self.action_reconstruction_loss
+        )
         infos = infos.add_loss_info("forward_loss", self.forward_loss)
         infos = infos.add_loss_info("smoothness_loss", self.smoothness_loss)
         infos = infos.add_loss_info("dispersion_loss", self.dispersion_loss)
@@ -213,7 +244,8 @@ class Losses:
         infos = infos.add_plain_info("condensation_gate", condensation_gate)
 
         result_loss = Losses.init(
-            reconstruction_loss=scaled_reconstruction_loss,
+            state_reconstruction_loss=scaled_state_reconstruction_loss,
+            action_reconstruction_loss=scaled_action_reconstruction_loss,
             forward_loss=scaled_forward_loss,
             smoothness_loss=scaled_smoothness_loss,
             dispersion_loss=scaled_dispersion_loss,
@@ -221,7 +253,8 @@ class Losses:
         )
 
         result_gates = Losses.init(
-            reconstruction_loss=1.0,
+            state_reconstruction_loss=1.0,
+            action_reconstruction_loss=1.0,
             forward_loss=forward_gate,
             smoothness_loss=smoothness_gate,
             dispersion_loss=dispersion_gate,
@@ -232,7 +265,8 @@ class Losses:
 
     def to_list(self):
         return [
-            self.reconstruction_loss,
+            self.state_reconstruction_loss,
+            self.action_reconstruction_loss,
             self.forward_loss,
             self.smoothness_loss,
             self.dispersion_loss,
@@ -241,8 +275,11 @@ class Losses:
 
     def replace(self, **kwargs):
         return Losses.init(
-            reconstruction_loss=kwargs.get(
-                "reconstruction_loss", self.reconstruction_loss
+            state_reconstruction_loss=kwargs.get(
+                "state_reconstruction_loss", self.state_reconstruction_loss
+            ),
+            action_reconstruction_loss=kwargs.get(
+                "action_reconstruction_loss", self.action_reconstruction_loss
             ),
             forward_loss=kwargs.get("forward_loss", self.forward_loss),
             smoothness_loss=kwargs.get("smoothness_loss", self.smoothness_loss),
@@ -253,11 +290,12 @@ class Losses:
     @classmethod
     def from_list(cls, self):
         return cls.init(
-            reconstruction_loss=self[0],
-            forward_loss=self[1],
-            smoothness_loss=self[2],
-            dispersion_loss=self[3],
-            condensation_loss=self[4],
+            state_reconstruction_loss=self[0],
+            action_reconstruction_loss=self[1],
+            forward_loss=self[2],
+            smoothness_loss=self[3],
+            dispersion_loss=self[4],
+            condensation_loss=self[5],
         )
 
     def total(self):

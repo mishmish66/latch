@@ -30,7 +30,7 @@ def loss_reconstruction(
         train_config (TrainConfig): The training config.
 
     Returns:
-        (scalar, Info): A tuple containing the loss value and associated info object.
+        ((scalar, scalar), Info): A tuple containing a tuple of loss values for states and actions, and associated info object.
     """
 
     rng, key = jax.random.split(key)
@@ -58,45 +58,6 @@ def loss_reconstruction(
         action=actions,
         latent_state=latent_states,
     )
-
-    # rng, key = jax.random.split(key)
-    # rngs = jax.random.split(rng, len(actions))
-    # reconstructed_states = jax.vmap(
-    #     jax.tree_util.Partial(
-    #         decode_state,
-    #         net_state=net_state,
-    #         train_config=train_config,
-    #     )
-    # )(
-    #     key=rngs,
-    #     latent_state=latent_states,
-    # )
-    # rng, key = jax.random.split(key)
-    # rngs = jax.random.split(rng, len(actions))
-    # reconstructed_actions = jax.vmap(
-    #     jax.tree_util.Partial(
-    #         decode_action,
-    #         net_state=net_state,
-    #         train_config=train_config,
-    #     )
-    # )(
-    #     key=rngs,
-    #     latent_state=latent_states,
-    #     latent_action=latent_actions,
-    # )
-
-    # # I'm defining this weird loss function to keep a gradient near 0 but also have a large gradient when the error is large.
-    # def mean_sq_log_error(result, gt):
-    #     errors = jnp.abs(result - gt)
-    #     sq_errors = jnp.square(errors)
-    #     log_errors = (jnp.log(10 * errors) + 1) / 10
-    #     pieced = jnp.maximum(sq_errors, log_errors)
-    #     return jnp.mean(pieced)
-
-    # state_loss = mean_sq_log_error(reconstructed_states, states)
-    # action_loss = mean_sq_log_error(reconstructed_actions, actions)
-
-    # reconstruction_loss = state_loss + action_loss
 
     state_space_gaussian = jax.vmap(
         jax.tree_util.Partial(
@@ -142,10 +103,4 @@ def loss_reconstruction(
     state_loss = -jnp.mean(state_probs)
     action_loss = -jnp.mean(action_probs)
 
-    reconstruction_loss = state_loss + action_loss
-
-    infos = Infos.init()
-    infos = infos.add_plain_info("state_reconstruction_loss", state_loss)
-    infos = infos.add_plain_info("action_reconstruction_loss", action_loss)
-
-    return reconstruction_loss, infos
+    return (state_loss, action_loss), Infos.init()

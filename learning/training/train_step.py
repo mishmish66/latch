@@ -109,12 +109,20 @@ def train_step(
         return nan_proportion
 
     loss_infos = loss_infos.add_plain_info(
-        "reconstruction_grad_norm",
-        compute_net_grad_norm(grads_loss_obj.reconstruction_loss),
+        "state_reconstruction_grad_norm",
+        compute_net_grad_norm(grads_loss_obj.state_reconstruction_loss),
     )
     loss_infos = loss_infos.add_plain_info(
-        "reconstruction_nan_portion",
-        compute_nan_proportion(grads_loss_obj.reconstruction_loss),
+        "action_reconstruction_grad_norm",
+        compute_net_grad_norm(grads_loss_obj.action_reconstruction_loss),
+    )
+    loss_infos = loss_infos.add_plain_info(
+        "state_reconstruction_nan_portion",
+        compute_nan_proportion(grads_loss_obj.state_reconstruction_loss),
+    )
+    loss_infos = loss_infos.add_plain_info(
+        "action_reconstruction_nan_portion",
+        compute_nan_proportion(grads_loss_obj.action_reconstruction_loss),
     )
     loss_infos = loss_infos.add_plain_info(
         "forward_grad_norm",
