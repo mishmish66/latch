@@ -91,10 +91,10 @@ train_config = TrainConfig.init(
     smoothness_gate_sharpness=1,
     dispersion_gate_sharpness=1,
     condensation_gate_sharpness=1,
-    forward_gate_center=-15,
+    forward_gate_center=-10,
     smoothness_gate_center=-3,
     dispersion_gate_center=-3,
-    condensation_gate_center=-15,
+    condensation_gate_center=-10,
 )
 
 rng, key = jax.random.split(key)
