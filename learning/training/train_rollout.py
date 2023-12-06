@@ -46,7 +46,7 @@ def train_rollout(key, train_state: TrainState):
     policy_auxes = jax.vmap(
         Partial(
             policy.make_aux,
-            variances=jnp.ones(2) * 0.1,
+            variances=jnp.ones(8) * 0.1,
         )
     )(target_state=target_states)
 

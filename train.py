@@ -1,4 +1,5 @@
 from env.finger import Finger
+from env.ant import Ant
 
 from learning.eval_actor import eval_batch_actor
 
@@ -40,12 +41,12 @@ checkpointer = ocp.PyTreeCheckpointer()
 learning_rate = float(1e-4)
 every_k = 1
 
-env_cls = Finger
+env_cls = Ant
 
 env_config = env_cls.get_config()
 
-latent_state_dim = 6
-latent_action_dim = 2
+latent_state_dim = 29
+latent_action_dim = 8
 
 train_config = TrainConfig.init(
     learning_rate=learning_rate,

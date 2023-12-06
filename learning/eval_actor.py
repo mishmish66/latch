@@ -30,7 +30,7 @@ def eval_single_actor(
     start_state,
     net_state: NetState,
     train_config: TrainConfig,
-    target_q=1.0,
+    target_qd=2.0,
     big_step_size=0.5,
     big_steps=2048,
     small_step_size=0.005,
@@ -57,8 +57,15 @@ def eval_single_actor(
         (array, Infos, array): A tuple of a (t x s) array of states, the infos from the eval, and a (t * substep x s) array of dense states.
     """
 
-    policy = ActorPolicy.init()
-    policy_aux = policy.make_aux(target_q=target_q)
+    policy = ActorPolicy.init(
+        big_step_size=big_step_size,
+        big_steps=big_steps,
+        small_step_size=small_step_size,
+        small_steps=small_steps,
+        big_post_steps=big_post_steps,
+        small_post_steps=small_post_steps,
+    )
+    policy_aux = policy.make_aux(target_qd=target_qd)
 
     rng, key = jax.random.split(key)
     (
@@ -75,7 +82,7 @@ def eval_single_actor(
     )
 
     def cost_func(state):
-        state_cost = jnp.abs(state[0] - target_q)
+        state_cost = jnp.abs(state[0] - target_qd)
 
         return state_cost
 
@@ -95,7 +102,7 @@ def eval_batch_actor(
     net_state: NetState,
     train_config: TrainConfig,
     eval_count=64,
-    target_q=1.0,
+    target_qd=2.0,
     big_step_size=0.5,
     big_steps=2048,
     small_step_size=0.005,
@@ -127,7 +134,7 @@ def eval_batch_actor(
         start_state=start_state,
         net_state=net_state,
         train_config=train_config,
-        target_q=target_q,
+        target_qd=target_qd,
         big_step_size=big_step_size,
         big_steps=big_steps,
         small_step_size=small_step_size,

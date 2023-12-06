@@ -32,10 +32,10 @@ class ActorPolicy(OptimizerPolicy):
         train_config: TrainConfig,
         current_action_i=0,
     ):
-        target_q = aux
+        target_qd = aux
 
         def cost_func(state):
-            state_cost = jnp.abs(state[0] - target_q)
+            state_cost = jnp.abs(state[17] - target_qd)
 
             return state_cost
 
@@ -89,8 +89,8 @@ class ActorPolicy(OptimizerPolicy):
         )
 
     @staticmethod
-    def make_aux(target_q):
-        return target_q
+    def make_aux(target_qd):
+        return target_qd
 
     @classmethod
     def init(
