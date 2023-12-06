@@ -37,6 +37,10 @@ checkpoint_dir = Path("checkpoints")
 
 checkpointer = ocp.PyTreeCheckpointer()
 
+# Save a list of the most recent checkpoints
+checkpoint_paths = []
+checkpoint_count = 3
+
 learning_rate = float(1e-4)
 every_k = 1
 
@@ -101,6 +105,7 @@ train_config = TrainConfig.init(
 rng, key = jax.random.split(key)
 train_state = TrainState.init(rng, train_config)
 
+
 wandb.init(
     # set the wandb project where this run will be logged
     project="Latch",
@@ -111,9 +116,10 @@ wandb.init(
 if os.path.exists(checkpoint_dir):
     # If it exists wait 3 seconds and then delete it (iterate counter in console for 3 seconds)
     for i in [3, 2, 1, 0]:
-        print(f"⏲️ Preparing to delete old checkpoints in {i} second(s)...", end="\r")
+        print(f"⏲️ Preparing to delete old checkpoints in {i} second(s)...", end="")
         sys.stdout.flush()
         time.sleep(1)
+        print("\r", end="")
     print("\n🧹 Clearing old checkpoints...")
 
     shutil.rmtree(checkpoint_dir)
@@ -125,7 +131,22 @@ def host_save_model(key, train_state, i):
         checkpoint_path.absolute(),
         train_state,
     )
+    # Save it as a zip file with {checkpoint_path}.zip
+    shutil.make_archive(checkpoint_path, "zip", checkpoint_path)
+    # Delete the folder
+    shutil.rmtree(checkpoint_path)
+    # Save the zip file to wandb
     wandb.save(str(checkpoint_dir / "checkpoint_r*"), base_path=str(checkpoint_dir))
+
+    # Queue the new checkpoint path at the front of the list
+    checkpoint_paths.insert(0, checkpoint_path)
+    # I had to comment this out because it was crashing wandb
+    # # Drop the oldest checkpoint if there are more than checkpoint_count
+    # if len(checkpoint_paths) > checkpoint_count:
+    #     # Get the oldest checkpoint
+    #     oldest_checkpoint_path = checkpoint_paths.pop()
+    #     # Delete the oldest checkpoint
+    #     os.remove(f"{oldest_checkpoint_path}.zip")
 
 
 def save_model(key, train_state, i):
@@ -154,11 +175,15 @@ def eval_model(key, train_state, i):
     )
 
 
-def save_and_eval_model(key, train_state, i):
-    """Saves the model and evaluates it."""
-    jax.debug.print("Saving 💾 and Evaluating 🧐 Network")
-
+def save_model_callback(key, train_state, i):
+    """Saves the model."""
+    jax.debug.print("Saving 💾 Network")
     save_model(key, train_state, i)
+
+
+def eval_model_callback(key, train_state, i):
+    """Evaluates the model."""
+    jax.debug.print("Evaluating 🧐 Network")
     eval_model(key, train_state, i)
 
 
@@ -169,7 +194,9 @@ def print_rollout_msg_for_tap(tap_pack, transforms):
 
 print("Starting Training Loop 🤓")
 
-save_and_eval_every = 1
+save_every = 8
+
+eval_every = 1
 
 
 # @profile
@@ -178,10 +205,18 @@ def train_loop(train_state, x_pack):
 
     id_tap(print_rollout_msg_for_tap, i)
 
-    is_every = i % save_and_eval_every == 0
+    save_this_time = i % save_every == 0
     jax.lax.cond(
-        is_every,
-        save_and_eval_model,
+        save_this_time,
+        save_model_callback,
+        lambda key, train_state, i: None,
+        *(key, train_state, i),
+    )
+
+    eval_this_time = i % eval_every == 0
+    jax.lax.cond(
+        eval_this_time,
+        eval_model_callback,
         lambda key, train_state, i: None,
         *(key, train_state, i),
     )
