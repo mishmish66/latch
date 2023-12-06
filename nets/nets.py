@@ -11,25 +11,34 @@ from einops import einsum, rearrange
 
 class FreqLayer(nn.Module):
     out_dim: jax.Array
+    min_freq: jax.Array = 0.25
+    max_freq: jax.Array = 128.0
 
     def setup(self):
         pass
 
     def __call__(self, x) -> Any:
         d = x.shape[-1]
-        per_dim = (((self.out_dim // d) - 1) // 2) + 1
-        indices = jnp.arange(per_dim)
-        freq_factor = 5 / jnp.power(1e4, 2 * indices / d)
-        operands = einsum(x, freq_factor, "d, w -> w d")
-        sins = jnp.sin(operands)
-        cosines = jnp.cos(operands)
 
-        freq_result = rearrange([sins, cosines], "f w d -> (d f w)")
-        sliced_freq_result = freq_result[: self.out_dim - d]
+        # Compute frequencies
+        freqs = jnp.logspace(
+            jnp.log10(self.min_freq),
+            jnp.log10(self.max_freq),
+            num=self.out_dim // 2 // d,
+        )
 
-        cat_result = jnp.concatenate([x, sliced_freq_result], axis=-1)
+        # Get phases
+        phases = einsum(x, freqs, "e, w -> e w")
 
-        return cat_result
+        # Compute sines and cosines of phases
+        sines = jnp.sin(phases)
+        cosines = jnp.cos(phases)
+
+        # Give it the dims it needs
+        freq_result = rearrange([sines, cosines], "f e w -> (w f e)")
+        freq_result = jnp.zeros(self.out_dim).at[: len(freq_result)].set(freq_result)
+
+        return freq_result
 
 
 class StateEncoder(nn.Module):
