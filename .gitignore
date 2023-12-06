@@ -4,3 +4,4 @@ checkpoints/*
 latch/*
 MUJOCO_LOG.TXT
 .vscode
+scratchpad.ipynb
