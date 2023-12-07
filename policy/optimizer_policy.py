@@ -252,7 +252,7 @@ class OptimizerPolicy(Policy):
         infos = infos.add_plain_info("max cost idx", jnp.argmax(costs))
         infos = infos.add_plain_info("min cost idx", jnp.argmin(costs))
 
-        return (optimized_actions, aux), infos
+        return (optimized_actions, aux), infos  # , costs
 
     def __call__(
         self, key, state, i, carry, net_state: NetState, train_config: TrainConfig
