@@ -5,7 +5,7 @@ from nets.nets import make_inds
 
 import jax
 from jax import numpy as jnp
-from jax.scipy.stats.norm import pdf as norm_pdf
+from jax.scipy.stats.norm import logpdf as norm_pdf
 
 
 def eval_log_gaussian(gaussian, point):
