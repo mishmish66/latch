@@ -55,6 +55,25 @@ train_config = TrainConfig.init(
     learning_rate=learning_rate,
     optimizer=optax.chain(
         optax.zero_nans(),
+        # optax.lion(
+        #     learning_rate=optax.join_schedules(
+        #         [
+        #             optax.cosine_onecycle_schedule(
+        #                 transition_steps=8192,
+        #                 peak_value=learning_rate,
+        #                 pct_start=0.3,
+        #                 div_factor=10.0,
+        #                 final_div_factor=0.1,
+        #             ),
+        #             optax.linear_schedule(
+        #                 init_value=learning_rate,
+        #                 end_value=learning_rate / 100.0,
+        #                 transition_steps=16384,
+        #             ),
+        #         ],
+        #         [8192],
+        #     ),
+        # ),
         optax.lion(
             learning_rate=optax.cosine_onecycle_schedule(
                 transition_steps=11000,
@@ -62,7 +81,7 @@ train_config = TrainConfig.init(
                 pct_start=0.3,
                 div_factor=10.0,
                 final_div_factor=10.0,
-            )
+            ),
         ),
     ),
     state_encoder=StateEncoder(latent_state_dim=latent_state_dim),
@@ -78,12 +97,12 @@ train_config = TrainConfig.init(
     env_cls=env_cls,
     seed=seed,
     target_net_tau=0.05,
-    transition_factor=100.0,
+    transition_factor=10.0,
     rollouts=256,
     epochs=256,
-    batch_size=32,
+    batch_size=16,
     every_k=every_k,
-    traj_per_rollout=256,
+    traj_per_rollout=1024,
     rollout_length=64,
     state_radius=1.25,
     action_radius=2.0,
@@ -91,15 +110,15 @@ train_config = TrainConfig.init(
     forward_weight=1.0,
     smoothness_weight=1.0,
     condensation_weight=1.0,
-    dispersion_weight=10.0,
+    dispersion_weight=1.0,
     forward_gate_sharpness=1,
     smoothness_gate_sharpness=1,
     dispersion_gate_sharpness=1,
     condensation_gate_sharpness=1,
-    forward_gate_center=-10,
+    forward_gate_center=-6,
     smoothness_gate_center=-3,
     dispersion_gate_center=-3,
-    condensation_gate_center=-10,
+    condensation_gate_center=-6,
 )
 
 rng, key = jax.random.split(key)
