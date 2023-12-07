@@ -5,7 +5,7 @@ from nets.nets import make_inds
 
 import jax
 from jax import numpy as jnp
-from jax.scipy.stats.multivariate_normal import logpdf as multinorm_logpdf
+from jax.scipy.stats.norm import pdf as norm_pdf
 
 
 def eval_log_gaussian(gaussian, point):
@@ -13,7 +13,8 @@ def eval_log_gaussian(gaussian, point):
     mean = gaussian[..., :dim]
     variance = gaussian[..., dim:]
 
-    return multinorm_logpdf(point, mean, jnp.diag(variance))
+    logits = norm_pdf(point, mean, variance)
+    return jnp.mean(logits, axis=-1)
 
 
 def sample_gaussian(key, gaussian):
