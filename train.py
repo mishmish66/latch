@@ -29,6 +29,8 @@ import os
 import sys
 import time
 
+import argparse
+
 seed = 0
 
 # Generate random key
@@ -40,18 +42,24 @@ checkpointer = ocp.PyTreeCheckpointer()
 checkpoint_paths = []
 checkpoint_count = 3
 
+# Set up the training config
 learning_rate = float(1e-4)
 every_k = 1
 
+# Set the environment class
 env_cls = Finger
 
+# Grab the default environment config from the env class
 env_config = env_cls.get_config()
 
+# Set the latent state and action dimensions (here I've just set them the same as the state and action dims)
 latent_state_dim = 6
 latent_action_dim = 2
 
+# Actually create the training config
 train_config = TrainConfig.init(
     learning_rate=learning_rate,
+    # Make the optimizer
     optimizer=optax.chain(
         optax.zero_nans(),
         optax.lion(
@@ -64,6 +72,7 @@ train_config = TrainConfig.init(
             ),
         ),
     ),
+    # Instantiate all of the networks
     state_encoder=StateEncoder(latent_state_dim=latent_state_dim),
     action_encoder=ActionEncoder(latent_action_dim=latent_action_dim),
     transition_model=TransitionModel(
@@ -101,21 +110,34 @@ train_config = TrainConfig.init(
     condensation_gate_center=0.01,
 )
 
+# Create the train state that contains all of the network and optimizer parameters
 rng, key = jax.random.split(key)
 train_state = TrainState.init(rng, train_config)
 
+# Handle resume arg
+parser = argparse.ArgumentParser(description="Train a model")
+parser.add_argument(
+    "--resume",
+    action="store_true",
+    default=False,
+    help="Resume training from the latest checkpoint",
+)
+args = parser.parse_args()
 
+# Initialize wandb
 wandb.init(
     # set the wandb project where this run will be logged
     project="Latch",
     config=train_config.make_dict(),
-    resume=True,
+    resume="must" if args.resume else "allow",
 )
 
+# Set a dir based on the wandb run id
 checkpoint_dir = Path(f"checkpoints/checkpoints_{wandb.run.id}")
 
 
 def host_save_model(key, train_state, i):
+    """This is a callback that runs on the host and saves the model to disk."""
     print("Saving 💾 Network")
     checkpoint_path = checkpoint_dir / f"checkpoint_r{i}_s{train_state.step}"
     checkpointer.save(
@@ -146,6 +168,8 @@ def host_save_model(key, train_state, i):
 
 
 def save_model(key, train_state, i):
+    """This is the jax wrapper for the checkpointing callback."""
+
     def save_model_for_tap(tap_pack, transforms):
         key, train_state, i = tap_pack
         host_save_model(key, train_state, i)
@@ -154,6 +178,7 @@ def save_model(key, train_state, i):
 
 
 def eval_model(key, train_state, i):
+    """This evaluates the model and logs the results to wandb."""
     jax.debug.print("Evaluating 🧐 Network")
     rng, key = jax.random.split(key)
     _, infos, dense_states = eval_batch_actor(
@@ -173,10 +198,12 @@ def eval_model(key, train_state, i):
 
 
 def print_rollout_msg_for_tap(tap_pack, transforms):
+    """Dumps a fun message to the console."""
     i = tap_pack
     print(f"Rollout 🛺 {i}")
 
 
+# Here we restore the latest checkpoint if we're resuming
 if wandb.run.resumed:
     checkpoint = wandb.restore(
         str(checkpoint_dir / "checkpoint_latest.zip"),
@@ -193,16 +220,17 @@ if wandb.run.resumed:
         item=train_state,
     )
 
-
+# Log that we're starting training
 print("Starting Training Loop 🤓")
 
+# Set the save and eval intervals
 save_every = 1
-
 eval_every = 1
 
 
-# @profile
+# Define the body of the training loop
 def train_loop(train_state):
+    """Trains for a single rollout and applies callbacks"""
     i = train_state.rollout
     key, train_state = train_state.split_key()
 
@@ -230,10 +258,18 @@ def train_loop(train_state):
 
 
 def train_cond(train_state: TrainState):
+    """Checks if we're done training"""
     # TODO: actually implement every_k
     return ~train_state.is_done()
 
 
+# Not sure if this is actually a good way to do this
+# I feel like it seems crazy to use a jax.lax.while_loop
+# for the whole training loop, but it's really fast
+# It takes a while to compile though (especially on
+# the unity nodes with their really slow server CPUs)
+
+"""Launch the jax lax while loop that trains the networks"""
 final_train_state = jax.lax.while_loop(train_cond, train_loop, train_state)
 
 print("Finished Training 🎉")
