@@ -170,13 +170,13 @@ class Losses:
             self.state_reconstruction_loss,
             train_config.forward_gate_sharpness,
             train_config.forward_gate_center,
-        ) * make_gate_value(
+        ) * make_log_gate_value(
             self.action_reconstruction_loss,
             train_config.forward_gate_sharpness,
             train_config.forward_gate_center,
         )
         condensation_gate = (
-            make_gate_value(
+            make_log_gate_value(
                 self.forward_loss,
                 train_config.condensation_gate_sharpness,
                 train_config.condensation_gate_center,
@@ -304,3 +304,10 @@ class Losses:
 def make_gate_value(x, sharpness, center):
     sgx = jax.lax.stop_gradient(x)
     return (1 + jnp.exp(sharpness * (sgx - center))) ** -1
+
+
+def make_log_gate_value(x, sharpness, center):
+    sgx = jax.lax.stop_gradient(x)
+    base = sgx / center
+    den = 1 + base**sharpness
+    return 1 / den
