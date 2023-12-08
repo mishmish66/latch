@@ -8,8 +8,6 @@ from nets.inference import (
     decode_state,
     decode_action,
     infer_states,
-    get_latent_state_prime_gaussians,
-    eval_log_gaussian,
     make_mask,
 )
 
@@ -54,7 +52,6 @@ class ActorPolicy(OptimizerPolicy):
                     decode_state, net_state=net_state, train_config=train_config
                 )
             )(
-                key=rngs,
                 latent_state=latent_states,
             )
             rng, key = jax.random.split(key)
@@ -64,16 +61,13 @@ class ActorPolicy(OptimizerPolicy):
                     decode_action, net_state=net_state, train_config=train_config
                 )
             )(
-                key=rngs,
                 latent_action=latent_actions,
                 latent_state=latent_states,
             )
 
             return jnp.sum(traj_cost_func(states, actions, current_action_i))
 
-        rng, key = jax.random.split(key)
         latent_states_prime = infer_states(
-            key=rng,
             latent_start_state=latent_start_state,
             latent_actions=latent_actions,
             net_state=net_state,

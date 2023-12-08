@@ -69,15 +69,13 @@ def train_rollout(train_state: TrainState):
 
     final_states = states[..., -1, :]
 
-    rng, key = jax.random.split(key)
-    rngs = jax.random.split(rng, len(final_states))
     latent_final_states = jax.vmap(
         jax.tree_util.Partial(
             encode_state,
             net_state=train_state.target_net_state,
             train_config=train_state.train_config,
         )
-    )(rngs, final_states)
+    )(final_states)
 
     final_latent_diffs = latent_final_states - target_states
     final_latent_diff_norms = jnp.linalg.norm(final_latent_diffs, ord=1, axis=-1)

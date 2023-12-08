@@ -8,7 +8,6 @@ from nets.inference import (
     decode_state,
     decode_action,
     infer_states,
-    sample_gaussian,
     get_neighborhood_states,
     get_neighborhood_actions,
 )
@@ -34,8 +33,6 @@ def loss_dispersion(
         (scalar, Info): A tuple containing the loss value and associated info object.
     """
 
-    rng, key = jax.random.split(key)
-    rngs = jax.random.split(rng, len(states))
     latent_states = jax.vmap(
         jax.tree_util.Partial(
             encode_state,
@@ -43,11 +40,8 @@ def loss_dispersion(
             train_config=train_config,
         )
     )(
-        key=rngs,
         state=states,
     )
-    rng, key = jax.random.split(key)
-    rngs = jax.random.split(rng, len(actions))
     latent_actions = jax.vmap(
         jax.tree_util.Partial(
             encode_action,
@@ -55,7 +49,6 @@ def loss_dispersion(
             train_config=train_config,
         )
     )(
-        key=rngs,
         action=actions,
         latent_state=latent_states,
     )

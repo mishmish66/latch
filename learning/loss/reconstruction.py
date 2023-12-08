@@ -5,16 +5,13 @@ from infos import Infos
 from nets.inference import (
     encode_state,
     encode_action,
-    eval_log_gaussian,
-    get_state_space_gaussian,
-    get_action_space_gaussian,
     infer_states,
-    sample_gaussian,
+    decode_state,
+    decode_action,
 )
 
 import jax
 from jax import numpy as jnp
-from jax.scipy.stats.norm import pdf as gaussian_pdf
 
 
 def loss_reconstruction(
@@ -42,7 +39,6 @@ def loss_reconstruction(
             train_config=train_config,
         )
     )(
-        key=rngs,
         state=states,
     )
     rng, key = jax.random.split(key)
@@ -54,77 +50,32 @@ def loss_reconstruction(
             train_config=train_config,
         )
     )(
-        key=rngs,
         action=actions,
         latent_state=latent_states,
     )
 
-    state_space_gaussian = jax.vmap(
+    reconstructed_states = jax.vmap(
         jax.tree_util.Partial(
-            get_state_space_gaussian,
+            decode_state,
             net_state=net_state,
             train_config=train_config,
         )
     )(
         latent_state=latent_states,
     )
-    action_space_gaussian = jax.vmap(
+
+    reconstructed_actions = jax.vmap(
         jax.tree_util.Partial(
-            get_action_space_gaussian,
+            decode_action,
             net_state=net_state,
             train_config=train_config,
         )
     )(
-        latent_state=latent_states,
         latent_action=latent_actions,
+        latent_state=latent_states,
     )
 
-    # Add to the variance to prevent numerical issues
-    state_space_gaussian = state_space_gaussian.at[
-        ..., train_config.latent_state_dim :
-    ].add(1e-10)
-    action_space_gaussian = action_space_gaussian.at[
-        ..., train_config.latent_action_dim :
-    ].add(1e-10)
+    state_mse = jnp.mean(jnp.square(states - reconstructed_states))
+    action_mse = jnp.mean(jnp.square(actions - reconstructed_actions))
 
-    state_probs = jax.vmap(
-        eval_log_gaussian,
-    )(
-        gaussian=state_space_gaussian,
-        point=states,
-    )
-    action_probs = jax.vmap(
-        eval_log_gaussian,
-    )(
-        gaussian=action_space_gaussian,
-        point=actions,
-    )
-
-    state_loss = -jnp.mean(state_probs)
-    action_loss = -jnp.mean(action_probs)
-
-    infos = Infos.init()
-
-    sampled_states = jax.vmap(
-        sample_gaussian,
-    )(
-        key=rngs,
-        gaussian=state_space_gaussian,
-    )
-    sampled_actions = jax.vmap(
-        sample_gaussian,
-    )(
-        key=rngs,
-        gaussian=action_space_gaussian,
-    )
-
-    state_absolute_errors = jnp.abs(sampled_states - states)
-    action_absolute_errors = jnp.abs(sampled_actions - actions)
-
-    state_mae = jnp.mean(state_absolute_errors)
-    action_mae = jnp.mean(action_absolute_errors)
-
-    infos = infos.add_plain_info("state_mae", state_mae)
-    infos = infos.add_plain_info("action_mae", action_mae)
-
-    return (state_loss, action_loss), infos
+    return (state_mse, action_mse), Infos.init()

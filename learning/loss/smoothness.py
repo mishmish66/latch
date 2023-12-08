@@ -8,7 +8,6 @@ from nets.inference import (
     decode_state,
     decode_action,
     infer_states,
-    sample_gaussian,
     get_neighborhood_states,
     get_neighborhood_actions,
 )
@@ -56,8 +55,6 @@ def loss_smoothness(
             neighborhood_sample_count (int, optional): The number of samples to take in the neighborhood. Defaults to 8.
         """
 
-        rng, key = jax.random.split(key)
-        rngs = jax.random.split(rng, len(states))
         latent_states = jax.vmap(
             jax.tree_util.Partial(
                 encode_state,
@@ -65,7 +62,6 @@ def loss_smoothness(
                 train_config=train_config,
             )
         )(
-            key=rngs,
             state=states,
         )
 
@@ -81,8 +77,6 @@ def loss_smoothness(
             count=neighborhood_sample_count,
         )
 
-        rng, key = jax.random.split(key)
-        rngs = jax.random.split(rng, len(actions))
         latent_actions = jax.vmap(
             jax.tree_util.Partial(
                 encode_action,
@@ -90,7 +84,6 @@ def loss_smoothness(
                 train_config=train_config,
             )
         )(
-            key=rngs,
             action=actions,
             latent_state=latent_prev_states,
         )
@@ -106,8 +99,6 @@ def loss_smoothness(
             out_axes=1,
         )(key=rngs, latent_action=latent_actions)
 
-        rng, key = jax.random.split(key)
-        rngs = jax.random.split(rng, neighborhood_sample_count)
         neighborhood_next_latent_states_prime = jax.vmap(
             jax.tree_util.Partial(
                 infer_states,
@@ -115,7 +106,7 @@ def loss_smoothness(
                 train_config=train_config,
                 current_action_i=start_state_idx,
             )
-        )(rngs, neighborhood_latent_start_states, neighborhood_latent_actions)
+        )(neighborhood_latent_start_states, neighborhood_latent_actions)
 
         pairwise_neighborhood_state_diffs = (
             neighborhood_next_latent_states_prime[..., None, :]

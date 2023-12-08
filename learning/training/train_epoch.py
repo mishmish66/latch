@@ -8,7 +8,6 @@ from nets.inference import (
     decode_state,
     decode_action,
     infer_states,
-    sample_gaussian,
     get_neighborhood_states,
     get_neighborhood_actions,
 )

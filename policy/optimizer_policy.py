@@ -64,7 +64,7 @@ def optimize_actions(
 
     rng, key = jax.random.split(key)
     latent_start_state = encode_state(
-        rng, start_state, net_state=net_state, train_config=train_config
+        start_state, net_state=net_state, train_config=train_config
     )
 
     def big_scanf(current_plan, key):
@@ -274,10 +274,7 @@ class OptimizerPolicy(Policy):
         )[0]
 
         latent_action = next_guess[i]
-        rng_0, rng_1, key = jax.random.split(key, 3)
-        latent_state = encode_state(rng_0, state, net_state, train_config)
-        action = decode_action(
-            rng_1, latent_action, latent_state, net_state, train_config
-        )
+        latent_state = encode_state(state, net_state, train_config)
+        action = decode_action(latent_action, latent_state, net_state, train_config)
 
         return action, (next_guess, aux), Infos.init()

@@ -8,8 +8,6 @@ from nets.inference import (
     decode_state,
     decode_action,
     infer_states,
-    get_latent_state_prime_gaussians,
-    eval_log_gaussian,
     make_mask,
 )
 
@@ -35,9 +33,7 @@ class FinderPolicy(OptimizerPolicy):
         current_action_i=0,
     ):
         target_state = aux
-        rng, key = jax.random.split(key)
         latent_states_prime = infer_states(
-            rng,
             latent_start_state,
             latent_actions,
             net_state=net_state,

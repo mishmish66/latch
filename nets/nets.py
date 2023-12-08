@@ -57,7 +57,7 @@ class StateEncoder(nn.Module):
                     # 512,
                     # 256,
                     # 256,
-                    self.latent_state_dim * 2,
+                    self.latent_state_dim,
                 ]
             )
         ]
@@ -93,7 +93,7 @@ class StateDecoder(nn.Module):
                     # 512,
                     # 256,
                     # 256,
-                    self.state_dim * 2,
+                    self.state_dim,
                 ]
             )
         ]
@@ -128,7 +128,7 @@ class ActionEncoder(nn.Module):
                     # 512,
                     # 256,
                     # 256,
-                    self.latent_action_dim * 2,
+                    self.latent_action_dim,
                 ]
             )
         ]
@@ -166,7 +166,7 @@ class ActionDecoder(nn.Module):
                     # 512,
                     # 256,
                     # 256,
-                    self.act_dim * 2,
+                    self.act_dim,
                 ]
             )
         ]
@@ -272,9 +272,7 @@ class TransitionModel(nn.Module):
             for i in range(self.n_layers)
         ]
 
-        self.state_condenser = nn.Dense(
-            self.latent_state_dim * 2, name="STATE_CONDENSER"
-        )
+        self.state_condenser = nn.Dense(self.latent_state_dim, name="STATE_CONDENSER")
 
     def __call__(
         self,
