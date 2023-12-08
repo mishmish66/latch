@@ -198,7 +198,7 @@ print("Starting Training Loop 🤓")
 
 save_every = 1
 
-eval_every = 32
+eval_every = 1
 
 
 # @profile
