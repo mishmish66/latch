@@ -53,10 +53,10 @@ class StateEncoder(nn.Module):
                 [
                     1024,
                     1024,
-                    512,
-                    512,
-                    256,
-                    256,
+                    # 512,
+                    # 512,
+                    # 256,
+                    # 256,
                     self.latent_state_dim * 2,
                 ]
             )
@@ -89,10 +89,10 @@ class StateDecoder(nn.Module):
                 [
                     1024,
                     1024,
-                    512,
-                    512,
-                    256,
-                    256,
+                    # 512,
+                    # 512,
+                    # 256,
+                    # 256,
                     self.state_dim * 2,
                 ]
             )
@@ -124,10 +124,10 @@ class ActionEncoder(nn.Module):
                 [
                     1024,
                     1024,
-                    512,
-                    512,
-                    256,
-                    256,
+                    # 512,
+                    # 512,
+                    # 256,
+                    # 256,
                     self.latent_action_dim * 2,
                 ]
             )
@@ -162,10 +162,10 @@ class ActionDecoder(nn.Module):
                 [
                     1024,
                     1024,
-                    512,
-                    512,
-                    256,
-                    256,
+                    # 512,
+                    # 512,
+                    # 256,
+                    # 256,
                     self.act_dim * 2,
                 ]
             )

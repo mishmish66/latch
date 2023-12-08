@@ -15,7 +15,6 @@ import wandb
 
 
 def train_step(
-    key,
     states,
     actions,
     train_state: TrainState,
@@ -23,7 +22,6 @@ def train_step(
     """Train for a single step.
 
     Args:
-        key (PRNGKey): Random seed for the train step.
         states (array): An (n x t x s) array of n rollouts containing t states with dim s
         actions (array): An (n x t-1 x a) array of n rollouts containing t-1 actions with dim a
         train_state (TrainState): The current training state.
@@ -31,6 +29,9 @@ def train_step(
     Returns:
         TrainState: The updated training state.
     """
+
+    # Fork out a key from the train_state
+    key, train_state = train_state.split_key()
 
     # Isolate just the net state from the train state
     def loss_for_grad(key, primary_net_state: NetState) -> Infos:

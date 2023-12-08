@@ -33,7 +33,6 @@ seed = 0
 
 # Generate random key
 key = jax.random.PRNGKey(seed)
-checkpoint_dir = Path("checkpoints")
 
 checkpointer = ocp.PyTreeCheckpointer()
 
@@ -55,32 +54,13 @@ train_config = TrainConfig.init(
     learning_rate=learning_rate,
     optimizer=optax.chain(
         optax.zero_nans(),
-        # optax.lion(
-        #     learning_rate=optax.join_schedules(
-        #         [
-        #             optax.cosine_onecycle_schedule(
-        #                 transition_steps=8192,
-        #                 peak_value=learning_rate,
-        #                 pct_start=0.3,
-        #                 div_factor=10.0,
-        #                 final_div_factor=0.1,
-        #             ),
-        #             optax.linear_schedule(
-        #                 init_value=learning_rate,
-        #                 end_value=learning_rate / 100.0,
-        #                 transition_steps=16384,
-        #             ),
-        #         ],
-        #         [8192],
-        #     ),
-        # ),
         optax.lion(
             learning_rate=optax.cosine_onecycle_schedule(
                 transition_steps=11000,
                 peak_value=learning_rate,
                 pct_start=0.3,
                 div_factor=10.0,
-                final_div_factor=10.0,
+                final_div_factor=2.5,
             ),
         ),
     ),
@@ -100,7 +80,7 @@ train_config = TrainConfig.init(
     transition_factor=10.0,
     rollouts=256,
     epochs=256,
-    batch_size=16,
+    batch_size=128,
     every_k=every_k,
     traj_per_rollout=1024,
     rollout_length=64,
@@ -129,22 +109,14 @@ wandb.init(
     # set the wandb project where this run will be logged
     project="Latch",
     config=train_config.make_dict(),
+    resume=True,
 )
 
-# Check if dir exists
-if os.path.exists(checkpoint_dir):
-    # If it exists wait 3 seconds and then delete it (iterate counter in console for 3 seconds)
-    for i in [3, 2, 1, 0]:
-        print(f"⏲️ Preparing to delete old checkpoints in {i} second(s)...", end="")
-        sys.stdout.flush()
-        time.sleep(1)
-        print("\r", end="")
-    print("\n🧹 Clearing old checkpoints...")
-
-    shutil.rmtree(checkpoint_dir)
+checkpoint_dir = Path(f"checkpoints/checkpoints_{wandb.run.id}")
 
 
 def host_save_model(key, train_state, i):
+    print("Saving 💾 Network")
     checkpoint_path = checkpoint_dir / f"checkpoint_r{i}_s{train_state.step}"
     checkpointer.save(
         checkpoint_path.absolute(),
@@ -152,20 +124,25 @@ def host_save_model(key, train_state, i):
     )
     # Save it as a zip file with {checkpoint_path}.zip
     shutil.make_archive(checkpoint_path, "zip", checkpoint_path)
-    # Delete the folder
+    # Delete the orbax folder
     shutil.rmtree(checkpoint_path)
-    # Save the zip file to wandb
-    wandb.save(str(checkpoint_dir / "checkpoint_r*"), base_path=str(checkpoint_dir))
+    # Overwrite the latest checkpoint
+    latest_checkpoint_path = checkpoint_dir / "checkpoint_latest.zip"
+    shutil.copyfile(
+        f"{checkpoint_path}.zip",
+        latest_checkpoint_path,
+    )
+    # Update the file in wandb
+    wandb.save(str(latest_checkpoint_path))
 
     # Queue the new checkpoint path at the front of the list
     checkpoint_paths.insert(0, checkpoint_path)
-    # I had to comment this out because it was crashing wandb
-    # # Drop the oldest checkpoint if there are more than checkpoint_count
-    # if len(checkpoint_paths) > checkpoint_count:
-    #     # Get the oldest checkpoint
-    #     oldest_checkpoint_path = checkpoint_paths.pop()
-    #     # Delete the oldest checkpoint
-    #     os.remove(f"{oldest_checkpoint_path}.zip")
+    # Drop the oldest checkpoint if there are more than checkpoint_count
+    if len(checkpoint_paths) > checkpoint_count:
+        # Get the oldest checkpoint
+        oldest_checkpoint_path = checkpoint_paths.pop()
+        # Delete the oldest checkpoint
+        os.remove(f"{oldest_checkpoint_path}.zip")
 
 
 def save_model(key, train_state, i):
@@ -177,6 +154,7 @@ def save_model(key, train_state, i):
 
 
 def eval_model(key, train_state, i):
+    jax.debug.print("Evaluating 🧐 Network")
     rng, key = jax.random.split(key)
     _, infos, dense_states = eval_batch_actor(
         key=rng,
@@ -194,40 +172,46 @@ def eval_model(key, train_state, i):
     )
 
 
-def save_model_callback(key, train_state, i):
-    """Saves the model."""
-    jax.debug.print("Saving 💾 Network")
-    save_model(key, train_state, i)
-
-
-def eval_model_callback(key, train_state, i):
-    """Evaluates the model."""
-    jax.debug.print("Evaluating 🧐 Network")
-    eval_model(key, train_state, i)
-
-
 def print_rollout_msg_for_tap(tap_pack, transforms):
     i = tap_pack
     print(f"Rollout 🛺 {i}")
 
 
+if wandb.run.resumed:
+    checkpoint = wandb.restore(
+        str(checkpoint_dir / "checkpoint_latest.zip"),
+        replace=True,
+        root=checkpoint_dir,
+    )
+    shutil.unpack_archive(
+        checkpoint.name,
+        checkpoint_dir / "checkpoint_latest",
+    )
+
+    train_state = checkpointer.restore(
+        (checkpoint_dir / "checkpoint_latest").absolute(),
+        item=train_state,
+    )
+
+
 print("Starting Training Loop 🤓")
 
-save_every = 8
+save_every = 1
 
-eval_every = 1
+eval_every = 32
 
 
 # @profile
-def train_loop(train_state, x_pack):
-    i, key = x_pack
+def train_loop(train_state):
+    i = train_state.rollout
+    key, train_state = train_state.split_key()
 
     id_tap(print_rollout_msg_for_tap, i)
 
     save_this_time = i % save_every == 0
     jax.lax.cond(
         save_this_time,
-        save_model_callback,
+        save_model,
         lambda key, train_state, i: None,
         *(key, train_state, i),
     )
@@ -235,22 +219,21 @@ def train_loop(train_state, x_pack):
     eval_this_time = i % eval_every == 0
     jax.lax.cond(
         eval_this_time,
-        eval_model_callback,
+        eval_model,
         lambda key, train_state, i: None,
         *(key, train_state, i),
     )
 
-    rng, key = jax.random.split(key)
-    train_state = train_rollout(
-        key=key,
-        train_state=train_state,
-    )
+    train_state = train_rollout(train_state)
 
-    return train_state, None
+    return train_state
 
 
-xs = (jnp.arange(train_config.rollouts), jax.random.split(key, train_config.rollouts))
+def train_cond(train_state: TrainState):
+    # TODO: actually implement every_k
+    return ~train_state.is_done()
 
-final_train_state, _ = jax.lax.scan(train_loop, train_state, xs)
+
+final_train_state = jax.lax.while_loop(train_cond, train_loop, train_state)
 
 print("Finished Training 🎉")

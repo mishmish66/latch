@@ -91,7 +91,9 @@ class NetState:
 @register_pytree_node_class
 @dataclass
 class TrainState:
+    key: jax.random.PRNGKey
     step: int
+    rollout: int
     target_net_state: NetState
     primary_net_state: NetState
     opt_state: any
@@ -99,7 +101,9 @@ class TrainState:
 
     def tree_flatten(self):
         return (
+            self.key,
             self.step,
+            self.rollout,
             self.target_net_state,
             self.primary_net_state,
             self.opt_state,
@@ -123,7 +127,9 @@ class TrainState:
         opt_state = train_config.optimizer.init(primary_net_state)
 
         return cls(
+            key=key,
             step=0,
+            rollout=0,
             target_net_state=target_net_state,
             primary_net_state=primary_net_state,
             opt_state=opt_state,
@@ -161,3 +167,15 @@ class TrainState:
         return self.replace(
             target_net_state=new_target_net_state,
         )
+
+    def split_key(self):
+        """This is a method that splits the key and returns the new key and the new train_state.
+
+        Returns:
+            (PRNGKey, TrainState): A new key and a new train_state.
+        """
+        rng, key = jax.random.split(self.key)
+        return rng, self.replace(key=key)
+
+    def is_done(self):
+        return self.rollout >= self.train_config.rollouts

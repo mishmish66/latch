@@ -19,13 +19,15 @@ from jax.tree_util import Partial
 
 
 # @profile
-def train_rollout(key, train_state: TrainState):
+def train_rollout(train_state: TrainState):
     """Trains the model for a single rollout.
 
     Args:
-        key (PRNGKey): Random seed for the rollout.
         train_state (TrainState): The current training state.
     """
+
+    # Fork out a key from the train_state
+    key, train_state = train_state.split_key()
 
     # Collect rollout data
     rng, key = jax.random.split(key)
@@ -95,15 +97,21 @@ def train_rollout(key, train_state: TrainState):
     )
 
     # Train the model for a bunch of epochs over the rollout data
-    def train_epoch_for_scan(train_state, key):
-        new_train_state = train_epoch(key, states, actions, train_state)
+    def train_epoch_for_scan(train_state, _):
+        new_train_state = train_epoch(states, actions, train_state)
         return new_train_state, new_train_state
 
-    rng, key = jax.random.split(rng)
-    rngs = jax.random.split(key, train_state.train_config.epochs)
-    train_state, _ = jax.lax.scan(train_epoch_for_scan, train_state, rngs)
+    train_state, _ = jax.lax.scan(
+        train_epoch_for_scan,
+        train_state,
+        None,
+        length=train_state.train_config.epochs,
+    )
 
     # Update the target network
     train_state = train_state.pull_target()
+
+    # Increment the rollout counter
+    train_state = train_state.replace(rollout=train_state.rollout + 1)
 
     return train_state
