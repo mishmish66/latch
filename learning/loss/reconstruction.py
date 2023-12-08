@@ -103,4 +103,28 @@ def loss_reconstruction(
     state_loss = -jnp.mean(state_probs)
     action_loss = -jnp.mean(action_probs)
 
-    return (state_loss, action_loss), Infos.init()
+    infos = Infos.init()
+
+    sampled_states = jax.vmap(
+        sample_gaussian,
+    )(
+        key=rngs,
+        gaussian=state_space_gaussian,
+    )
+    sampled_actions = jax.vmap(
+        sample_gaussian,
+    )(
+        key=rngs,
+        gaussian=action_space_gaussian,
+    )
+
+    state_absolute_errors = jnp.abs(sampled_states - states)
+    action_absolute_errors = jnp.abs(sampled_actions - actions)
+
+    state_mae = jnp.mean(state_absolute_errors)
+    action_mae = jnp.mean(action_absolute_errors)
+
+    infos = infos.add_plain_info("state_mae", state_mae)
+    infos = infos.add_plain_info("action_mae", action_mae)
+
+    return (state_loss, action_loss), infos
