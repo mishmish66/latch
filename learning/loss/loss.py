@@ -166,7 +166,7 @@ class Losses:
     def scale_gate_info(self, train_config: TrainConfig):
         infos = Infos.init()
 
-        forward_gate = make_gate_value(
+        forward_gate = make_log_gate_value(
             self.state_reconstruction_loss,
             train_config.forward_gate_sharpness,
             train_config.forward_gate_center,
