@@ -104,8 +104,8 @@ def train_step(
         return norm
 
     # TODO: Make this a hyperparam or something
-    max_grad_norm = 32
-    max_transition_model_grad_norm = 128
+    max_grad_norm = 1e4
+    max_transition_model_grad_norm = 1e6
     # Here let's clip the gradients for each network
     grad_norms = jnp.array(
         [compute_net_grad_norm(net_grad) for net_grad in cumulative_grad.to_list()]
