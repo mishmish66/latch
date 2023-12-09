@@ -12,7 +12,7 @@ from einops import einsum, rearrange
 class FreqLayer(nn.Module):
     out_dim: jax.Array
     min_freq: jax.Array = 0.25
-    max_freq: jax.Array = 128.0
+    max_freq: jax.Array = 512.0
 
     def setup(self):
         pass
@@ -51,12 +51,12 @@ class StateEncoder(nn.Module):
             nn.Dense(dim, name=f"FC{i}")
             for i, dim in enumerate(
                 [
-                    1024,
-                    1024,
-                    # 512,
-                    # 512,
-                    # 256,
-                    # 256,
+                    # 1024,
+                    # 1024,
+                    512,
+                    512,
+                    256,
+                    256,
                     self.latent_state_dim,
                 ]
             )
@@ -87,12 +87,12 @@ class StateDecoder(nn.Module):
             nn.Dense(d, name=f"FC{i}")
             for i, d in enumerate(
                 [
-                    1024,
-                    1024,
-                    # 512,
-                    # 512,
-                    # 256,
-                    # 256,
+                    # 1024,
+                    # 1024,
+                    512,
+                    512,
+                    256,
+                    256,
                     self.state_dim,
                 ]
             )

@@ -43,7 +43,7 @@ checkpoint_paths = []
 checkpoint_count = 3
 
 # Set up the training config
-learning_rate = float(1e-4)
+learning_rate = float(5e-5)
 every_k = 1
 
 # Set the environment class
@@ -64,11 +64,11 @@ train_config = TrainConfig.init(
         optax.zero_nans(),
         optax.lion(
             learning_rate=optax.cosine_onecycle_schedule(
-                transition_steps=11000,
+                transition_steps=8192,
                 peak_value=learning_rate,
                 pct_start=0.3,
-                div_factor=10.0,
-                final_div_factor=2.5,
+                div_factor=25.0,
+                final_div_factor=2.0,
             ),
         ),
     ),
@@ -86,28 +86,28 @@ train_config = TrainConfig.init(
     env_cls=env_cls,
     seed=seed,
     target_net_tau=0.05,
-    transition_factor=10.0,
+    transition_factor=50.0,
     rollouts=256,
     epochs=64,
-    batch_size=32,
+    batch_size=64,
     every_k=every_k,
     traj_per_rollout=1024,
     rollout_length=64,
-    state_radius=1.25,
+    state_radius=1.6,
     action_radius=2.0,
     reconstruction_weight=1.0,
     forward_weight=1.0,
     smoothness_weight=1.0,
     condensation_weight=1.0,
-    dispersion_weight=1.0,
+    dispersion_weight=10.0,
     forward_gate_sharpness=8,
     smoothness_gate_sharpness=1,
     dispersion_gate_sharpness=1,
     condensation_gate_sharpness=8,
-    forward_gate_center=0.01,
+    forward_gate_center=0.00025,
     smoothness_gate_center=-3,
     dispersion_gate_center=-3,
-    condensation_gate_center=0.01,
+    condensation_gate_center=0.00025,
 )
 
 # Create the train state that contains all of the network and optimizer parameters
