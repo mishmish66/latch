@@ -87,6 +87,15 @@ def train_step(
         *grads_loss_obj.to_list(),
     )
 
+    # Multiply the transition model grads by the transition factor
+    scaled_transition_model_grad = scale_grad(
+        cumulative_grad.transition_model_params,
+        train_state.train_config.transition_factor,
+    )
+    cumulative_grad = cumulative_grad.replace(
+        transition_model_params=scaled_transition_model_grad
+    )
+
     def compute_net_grad_norm(grads_net_obj):
         flat_grads, _ = tree_flatten(grads_net_obj)
         flat = jnp.concatenate([jnp.ravel(x) for x in flat_grads])
@@ -94,30 +103,33 @@ def train_step(
         norm = jnp.linalg.norm(nan_filtered_flat)
         return norm
 
-    # Commenting this for now since some experiments showed
-    # that it wasn't doing much (I think)
+    # TODO: Make this a hyperparam or something
+    max_grad_norm = 32
+    max_transition_model_grad_norm = 128
+    # Here let's clip the gradients for each network
+    grad_norms = jnp.array(
+        [compute_net_grad_norm(net_grad) for net_grad in cumulative_grad.to_list()]
+    )
+    grad_factors = jnp.minimum(1, max_grad_norm / grad_norms)
 
-    # # Here let's normalize the gradients for each network
-    # normalized_grads = NetState.from_list(
-    #     [
-    #         scale_grad(net_grad, 1 / compute_net_grad_norm(net_grad))
-    #         for net_grad in cumulative_grad.to_list()
-    #     ]
-    # )
+    clipped_grads = NetState.from_list(
+        [
+            scale_grad(net_grad, grad_factor)
+            for grad_factor, net_grad in zip(grad_factors, cumulative_grad.to_list())
+        ]
+    )
 
-    # # For the transition model though, we want to scale it a bit higher
-    # normalized_grads = normalized_grads.replace(
-    #     transition_model_params=scale_grad(
-    #         normalized_grads.transition_model_params,
-    #         train_state.train_config.transition_factor,
-    #     )
-    # )
-
-    # Scale up the transition model grads
-    cumulative_grad = cumulative_grad.replace(
+    # For the transition model though, we want to clip it to a different value
+    transition_grad_norm = compute_net_grad_norm(
+        cumulative_grad.transition_model_params
+    )
+    transition_grad_factor = jnp.minimum(
+        1, max_transition_model_grad_norm / transition_grad_norm
+    )
+    clipped_grads = clipped_grads.replace(
         transition_model_params=scale_grad(
             cumulative_grad.transition_model_params,
-            train_state.train_config.transition_factor,
+            transition_grad_factor,
         )
     )
 
@@ -178,28 +190,28 @@ def train_step(
     )
 
     # Find the magnitude of the whole gradient together
-    total_grad_norm = compute_net_grad_norm(cumulative_grad)
-    total_nan_proportion = compute_nan_proportion(cumulative_grad)
+    total_grad_norm = compute_net_grad_norm(clipped_grads)
+    total_nan_proportion = compute_nan_proportion(clipped_grads)
 
     loss_infos = loss_infos.add_plain_info(
         "state_encoder_grad_nan_proportion",
-        compute_nan_proportion(cumulative_grad.state_encoder_params),
+        compute_nan_proportion(clipped_grads.state_encoder_params),
     )
     loss_infos = loss_infos.add_plain_info(
         "action_encoder_grad_nan_proportion",
-        compute_nan_proportion(cumulative_grad.action_encoder_params),
+        compute_nan_proportion(clipped_grads.action_encoder_params),
     )
     loss_infos = loss_infos.add_plain_info(
         "transition_model_grad_nan_proportion",
-        compute_nan_proportion(cumulative_grad.transition_model_params),
+        compute_nan_proportion(clipped_grads.transition_model_params),
     )
     loss_infos = loss_infos.add_plain_info(
         "state_decoder_grad_nan_proportion",
-        compute_nan_proportion(cumulative_grad.state_decoder_params),
+        compute_nan_proportion(clipped_grads.state_decoder_params),
     )
     loss_infos = loss_infos.add_plain_info(
         "action_decoder_grad_nan_proportion",
-        compute_nan_proportion(cumulative_grad.action_decoder_params),
+        compute_nan_proportion(clipped_grads.action_decoder_params),
     )
 
     loss_infos = loss_infos.add_plain_info("total_grad_norm", total_grad_norm)
@@ -208,6 +220,6 @@ def train_step(
     loss_infos.dump_to_wandb(train_state=train_state)
 
     # train_state = train_state.apply_gradients(normalized_grads)
-    train_state = train_state.apply_gradients(cumulative_grad)
+    train_state = train_state.apply_gradients(clipped_grads)
 
     return train_state
