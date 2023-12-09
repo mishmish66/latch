@@ -43,7 +43,7 @@ checkpoint_paths = []
 checkpoint_count = 3
 
 # Set up the training config
-learning_rate = float(5e-3)
+learning_rate = float(2.5e-4)
 every_k = 1
 
 # Set the environment class
