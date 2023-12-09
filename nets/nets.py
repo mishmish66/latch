@@ -302,15 +302,5 @@ class TransitionModel(nn.Module):
 
         # Rescale states to original dim
         x = self.state_condenser(x)
-        latent_state_prime_mean = x[..., : self.latent_state_dim]
-        latent_state_prime_std = nn.softplus(x[..., self.latent_state_dim :])
 
-        latent_state_prime_gauss_params = jnp.concatenate(
-            [
-                latent_state_prime_mean,
-                latent_state_prime_std,
-            ],
-            axis=-1,
-        )
-
-        return latent_state_prime_gauss_params
+        return x
