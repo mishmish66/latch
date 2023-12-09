@@ -43,7 +43,7 @@ checkpoint_paths = []
 checkpoint_count = 3
 
 # Set up the training config
-learning_rate = float(5e-5)
+learning_rate = float(1e-3)
 every_k = 1
 
 # Set the environment class
@@ -62,7 +62,7 @@ train_config = TrainConfig.init(
     # Make the optimizer
     optimizer=optax.chain(
         optax.zero_nans(),
-        optax.lion(
+        optax.adamw(
             learning_rate=optax.cosine_onecycle_schedule(
                 transition_steps=8192,
                 peak_value=learning_rate,
@@ -86,7 +86,7 @@ train_config = TrainConfig.init(
     env_cls=env_cls,
     seed=seed,
     target_net_tau=0.05,
-    transition_factor=50.0,
+    transition_factor=10.0,
     rollouts=256,
     epochs=64,
     batch_size=64,
