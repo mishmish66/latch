@@ -30,8 +30,6 @@ def loss_reconstruction(
         ((scalar, scalar), Info): A tuple containing a tuple of loss values for states and actions, and associated info object.
     """
 
-    rng, key = jax.random.split(key)
-    rngs = jax.random.split(rng, len(states))
     latent_states = jax.vmap(
         jax.tree_util.Partial(
             encode_state,
@@ -41,8 +39,6 @@ def loss_reconstruction(
     )(
         state=states,
     )
-    rng, key = jax.random.split(key)
-    rngs = jax.random.split(rng, len(actions))
     latent_actions = jax.vmap(
         jax.tree_util.Partial(
             encode_action,
@@ -81,7 +77,7 @@ def loss_reconstruction(
         err_ln = jnp.log(err + 1e-8)
         return jnp.mean(err_sq + err_ln)
 
-    state_loss = loss_fn(states - reconstructed_states)
-    action_loss = loss_fn(actions - reconstructed_actions)
+    state_loss = loss_fn(states, reconstructed_states)
+    action_loss = loss_fn(actions, reconstructed_actions)
 
     return (state_loss, action_loss), Infos.init()
