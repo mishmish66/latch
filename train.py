@@ -43,7 +43,7 @@ checkpoint_paths = []
 checkpoint_count = 3
 
 # Set up the training config
-learning_rate = float(1e-3)
+learning_rate = float(5e-3)
 every_k = 1
 
 # Set the environment class
@@ -68,7 +68,7 @@ train_config = TrainConfig.init(
                 peak_value=learning_rate,
                 pct_start=0.3,
                 div_factor=25.0,
-                final_div_factor=2.0,
+                final_div_factor=1.0,
             ),
         ),
     ),
@@ -100,14 +100,14 @@ train_config = TrainConfig.init(
     smoothness_weight=1.0,
     condensation_weight=1.0,
     dispersion_weight=10.0,
-    forward_gate_sharpness=8,
+    forward_gate_sharpness=1,
     smoothness_gate_sharpness=1,
     dispersion_gate_sharpness=1,
-    condensation_gate_sharpness=8,
-    forward_gate_center=0.00025,
+    condensation_gate_sharpness=1,
+    forward_gate_center=-6,
     smoothness_gate_center=-3,
     dispersion_gate_center=-3,
-    condensation_gate_center=0.00025,
+    condensation_gate_center=-6,
 )
 
 # Create the train state that contains all of the network and optimizer parameters

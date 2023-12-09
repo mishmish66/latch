@@ -75,7 +75,13 @@ def loss_reconstruction(
         latent_state=latent_states,
     )
 
-    state_mse = jnp.mean(jnp.square(states - reconstructed_states))
-    action_mse = jnp.mean(jnp.square(actions - reconstructed_actions))
+    def loss_fn(x, y):
+        err = jnp.abs(x - y)
+        err_sq = jnp.square(err)
+        err_ln = jnp.log(err + 1e-8)
+        return jnp.mean(err_sq + err_ln)
 
-    return (state_mse, action_mse), Infos.init()
+    state_loss = loss_fn(states - reconstructed_states)
+    action_loss = loss_fn(actions - reconstructed_actions)
+
+    return (state_loss, action_loss), Infos.init()
