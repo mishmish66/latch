@@ -87,7 +87,6 @@ def train_step(
         *grads_loss_obj.to_list(),
     )
 
-    # Here let's normalize the gradients for each network
     def compute_net_grad_norm(grads_net_obj):
         flat_grads, _ = tree_flatten(grads_net_obj)
         flat = jnp.concatenate([jnp.ravel(x) for x in flat_grads])
@@ -95,17 +94,29 @@ def train_step(
         norm = jnp.linalg.norm(nan_filtered_flat)
         return norm
 
-    normalized_grads = NetState.from_list(
-        [
-            scale_grad(net_grad, 1 / compute_net_grad_norm(net_grad))
-            for net_grad in cumulative_grad.to_list()
-        ]
-    )
+    # Commenting this for now since some experiments showed
+    # that it wasn't doing much (I think)
 
-    # For the transition model though, we want to scale it a bit higher
-    normalized_grads = normalized_grads.replace(
+    # # Here let's normalize the gradients for each network
+    # normalized_grads = NetState.from_list(
+    #     [
+    #         scale_grad(net_grad, 1 / compute_net_grad_norm(net_grad))
+    #         for net_grad in cumulative_grad.to_list()
+    #     ]
+    # )
+
+    # # For the transition model though, we want to scale it a bit higher
+    # normalized_grads = normalized_grads.replace(
+    #     transition_model_params=scale_grad(
+    #         normalized_grads.transition_model_params,
+    #         train_state.train_config.transition_factor,
+    #     )
+    # )
+
+    # Scale up the transition model grads
+    cumulative_grad = cumulative_grad.replace(
         transition_model_params=scale_grad(
-            normalized_grads.transition_model_params,
+            cumulative_grad.transition_model_params,
             train_state.train_config.transition_factor,
         )
     )
@@ -196,6 +207,7 @@ def train_step(
 
     loss_infos.dump_to_wandb(train_state=train_state)
 
-    train_state = train_state.apply_gradients(normalized_grads)
+    # train_state = train_state.apply_gradients(normalized_grads)
+    train_state = train_state.apply_gradients(cumulative_grad)
 
     return train_state
