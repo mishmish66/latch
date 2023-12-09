@@ -129,7 +129,7 @@ wandb.init(
     # set the wandb project where this run will be logged
     project="Latch",
     config=train_config.make_dict(),
-    resume="must" if args.resume else "allow",
+    resume=True if args.resume else "allow",
 )
 
 # Set a dir based on the wandb run id
