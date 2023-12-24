@@ -13,3 +13,4 @@ orbax
 orbax-checkpoint
 Pillow
 wandb>=0.16.0
+jax_dataclasses
