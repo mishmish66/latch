@@ -298,7 +298,7 @@ class Losses:
         )
 
     def total(self):
-        return jnp.sum(self.to_list())
+        return jnp.sum(jnp.array(self.to_list()))
 
 
 def make_gate_value(x, sharpness, center):

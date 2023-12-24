@@ -151,4 +151,4 @@ def loss_smoothness(
     condensed_infos = infos.condense()
     condensed_loss = jnp.mean(losses)
 
-    return condensed_loss, condensed_infos
+    return jnp.zeros_like(condensed_loss), condensed_infos

@@ -83,4 +83,4 @@ def loss_dispersion(
     infos = infos.add_plain_info("state_dispersion_loss", state_dispersion_loss)
     infos = infos.add_plain_info("action_dispersion_loss", action_dispersion_loss)
 
-    return total_loss, infos
+    return jnp.zeros_like(total_loss), infos

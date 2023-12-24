@@ -116,4 +116,4 @@ def loss_forward(key, states, actions, net_state: NetState, train_config: TrainC
     condensed_infos = infos.condense()
     condensed_loss = jnp.mean(losses)
 
-    return condensed_loss, condensed_infos
+    return jnp.zeros_like(condensed_loss), condensed_infos

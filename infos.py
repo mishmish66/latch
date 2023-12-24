@@ -183,9 +183,9 @@ class Infos:
         loss_msg = "\nLosses:" + "".join(
             [f"\n\t\t{name}: {value}" for name, value in self.loss_infos.items()]
         )
-        info_msg = "\nInfos:" + "".join(
-            [f"\n\t\t{name}: {value}" for name, value in self.plain_infos.items()]
-        )
+        info_msg = ""  # \nInfos:" + "".join(
+        #     [f"\n\t\t{name}: {value}" for name, value in self.plain_infos.items()]
+        # )
 
         return loss_msg + "\n" + info_msg
 
