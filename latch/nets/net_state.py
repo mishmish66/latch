@@ -1,5 +1,3 @@
-from latch import LatchConfig
-
 from .nets import Nets
 
 import jax_dataclasses as jdc
@@ -10,7 +8,7 @@ from jax import numpy as jnp
 from typing import Optional, Any, Dict
 
 
-@jdc.pytree_dataclass(init=False, kw_only=True)
+@jdc.pytree_dataclass(kw_only=True)
 class NetState:
     state_encoder_params: Dict[str, Any]
     action_encoder_params: Dict[str, Any]
@@ -19,52 +17,6 @@ class NetState:
     action_decoder_params: Dict[str, Any]
 
     nets: Nets
-
-    @classmethod
-    def initialize_random_net_state(
-        cls,
-        key,
-        latch_config: LatchConfig,
-    ):
-        rng, key = jax.random.split(key)
-        rngs = jax.random.split(rng, 6)
-
-        nets = latch_config.nets
-
-        state_encoder_params: Dict[str, Any] = nets.state_encoder.init(  # type: ignore
-            rngs[0],
-            jnp.ones(latch_config.state_dim),
-        )
-        action_encoder_params: Dict[str, Any] = nets.action_encoder.init(  # type: ignore
-            rngs[1],
-            jnp.ones(latch_config.action_dim),
-            jnp.ones(latch_config.latent_state_dim),
-        )
-        transition_model_params: Dict[str, Any] = nets.transition_model.init(  # type: ignore
-            rngs[3],
-            jnp.ones([latch_config.latent_state_dim]),
-            jnp.ones([16, latch_config.latent_action_dim]),
-            jnp.ones(16),
-            10,
-        )
-        state_decoder_params: Dict[str, Any] = nets.state_decoder.init(  # type: ignore
-            rngs[4],
-            jnp.ones(latch_config.latent_state_dim),
-        )
-        action_decoder_params: Dict[str, Any] = nets.action_decoder.init(  # type: ignore
-            rngs[5],
-            jnp.ones(latch_config.latent_action_dim),
-            jnp.ones(latch_config.latent_state_dim),
-        )
-
-        return cls(
-            state_encoder_params=state_encoder_params,
-            action_encoder_params=action_encoder_params,
-            transition_model_params=transition_model_params,
-            state_decoder_params=state_decoder_params,
-            action_decoder_params=action_decoder_params,
-            nets=nets,
-        )
 
     def encode_state(self, state: jax.Array) -> jax.Array:
         latent_state: jax.Array = self.nets.state_encoder.apply(  # type: ignore
@@ -106,19 +58,6 @@ class NetState:
         )
 
         return latent_states_prime
-
-    def to_list(self):
-        return [
-            self.state_encoder_params,
-            self.action_encoder_params,
-            self.transition_model_params,
-            self.state_decoder_params,
-            self.action_decoder_params,
-        ]
-
-    @classmethod
-    def from_list(cls, l):
-        return cls(*l)
 
     @property
     def latent_state_radius(self):

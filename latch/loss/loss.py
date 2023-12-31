@@ -1,6 +1,6 @@
 from latch.nets import NetState
 
-from infos import Infos
+from latch import Infos
 
 import jax_dataclasses as jdc
 

@@ -2,7 +2,7 @@ from .loss import SigmoidGatedLoss
 
 from latch.nets import NetState
 
-from infos import Infos
+from latch import Infos
 
 import jax
 from jax import numpy as jnp

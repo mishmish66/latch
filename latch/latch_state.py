@@ -26,9 +26,47 @@ class LatchState:
     def init(cls, key, config: LatchConfig) -> "LatchState":
         rng, key = jax.random.split(key)
 
-        target_net_state = NetState.initialize_random_net_state(
-            key=rng, latch_config=config
+        rng, key = jax.random.split(key)
+        rngs = jax.random.split(rng, 6)
+
+        nets = config.nets
+
+        # Initialize the network parameters
+        state_encoder_params: Dict[str, Any] = nets.state_encoder.init(  # type: ignore
+            rngs[0],
+            jnp.ones(config.state_dim),
         )
+        action_encoder_params: Dict[str, Any] = nets.action_encoder.init(  # type: ignore
+            rngs[1],
+            jnp.ones(config.action_dim),
+            jnp.ones(config.latent_state_dim),
+        )
+        transition_model_params: Dict[str, Any] = nets.transition_model.init(  # type: ignore
+            rngs[3],
+            jnp.ones([config.latent_state_dim]),
+            jnp.ones([16, config.latent_action_dim]),
+            jnp.ones(16),
+            10,
+        )
+        state_decoder_params: Dict[str, Any] = nets.state_decoder.init(  # type: ignore
+            rngs[4],
+            jnp.ones(config.latent_state_dim),
+        )
+        action_decoder_params: Dict[str, Any] = nets.action_decoder.init(  # type: ignore
+            rngs[5],
+            jnp.ones(config.latent_action_dim),
+            jnp.ones(config.latent_state_dim),
+        )
+
+        target_net_state = NetState(
+            state_encoder_params=state_encoder_params,
+            action_encoder_params=action_encoder_params,
+            transition_model_params=transition_model_params,
+            state_decoder_params=state_decoder_params,
+            action_decoder_params=action_decoder_params,
+            nets=nets,
+        )
+
         primary_net_state = target_net_state
 
         opt_state = train_config.optimizer.init(primary_net_state)  # type: ignore
