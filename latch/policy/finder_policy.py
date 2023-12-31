@@ -1,54 +1,41 @@
-from policy.optimizer_policy import OptimizerPolicy
+from .optimizer_policy import OptimizerPolicy
 
-from learning.train_state import TrainState, NetState, TrainConfig
+from latch import LatchState
+from latch.nets import make_mask
 
-from nets.inference import (
-    encode_state,
-    encode_action,
-    decode_state,
-    decode_action,
-    infer_states,
-    make_mask,
-)
+import jax_dataclasses as jdc
 
-from jax.tree_util import register_pytree_node_class, Partial
+from jax.tree_util import Partial
 
 import jax
 from jax import numpy as jnp
 
-from dataclasses import dataclass, replace
+from typing import override
 
 
-# @register_pytree_node_class
-@dataclass
+@jdc.pytree_dataclass(kw_only=True)
 class FinderPolicy(OptimizerPolicy):
-    @staticmethod
+    latent_target: jax.Array
+
+    @override
     def cost_func(
+        self,
         key,
         latent_actions,
         latent_start_state,
-        aux,
-        net_state: NetState,
-        train_config: TrainConfig,
+        train_state: LatchState,
         current_action_i=0,
-    ):
-        target_state = aux
-        latent_states_prime = infer_states(
-            latent_start_state,
-            latent_actions,
-            net_state=net_state,
-            train_config=train_config,
+    ) -> float:
+        latent_states_prime = train_state.target_net_state.infer_states(
+            latent_start_state=latent_start_state,
+            latent_actions=latent_actions,
             current_action_i=current_action_i,
         )
-        latent_states_prime_err = latent_states_prime - target_state
+        latent_states_prime_err = latent_states_prime - self.latent_target
         latent_states_prime_err_norm = jnp.linalg.norm(
             latent_states_prime_err, ord=1, axis=-1
         )
         causal_mask = make_mask(len(latent_actions), current_action_i)
         future_err_norms = jnp.where(causal_mask, latent_states_prime_err_norm, 0.0)
 
-        return jnp.mean(future_err_norms)
-
-    @staticmethod
-    def make_aux(target_state):
-        return target_state
+        return jnp.mean(future_err_norms).item()  # type: ignore

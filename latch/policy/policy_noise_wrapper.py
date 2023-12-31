@@ -1,37 +1,34 @@
-from learning.train_state import NetState, TrainConfig
+from latch.learning import TrainState
+
+from .policy import Policy
+
+from latch.infos import Infos
 
 import jax
 from jax import numpy as jnp
 
-from dataclasses import dataclass
+import jax_dataclasses as jdc
+
+from typing import TypeVar, Tuple, Callable, override
 
 
-@dataclass
-class PolicyNoiseWrapper:
-    wrapped_policy: any
+@jdc.pytree_dataclass(kw_only=True)
+class PolicyNoiseWrapper[C](Policy[C]):
+    wrapped_policy: Policy[C]
+    variances: jax.Array
 
-    def make_aux(self, variances, *args, **kwargs):
-        wrapped_aux = self.wrapped_policy.make_aux(*args, **kwargs)
-        return (variances, wrapped_aux)
-
+    @override
     def make_init_carry(
         self,
         key,
         start_state,
-        aux,
-        net_state: NetState,
-        train_config: TrainConfig,
-    ):
-        variances, wrapped_aux = aux
-        init_carry, info = self.wrapped_policy.make_init_carry(
+        train_state: TrainState,
+    ) -> Tuple[C, Infos]:
+        return self.wrapped_policy.make_init_carry(
             key=key,
             start_state=start_state,
-            aux=wrapped_aux,
-            net_state=net_state,
-            train_config=train_config,
+            train_state=train_state,
         )
-
-        return (init_carry, variances), info
 
     def __call__(
         self,
@@ -39,23 +36,21 @@ class PolicyNoiseWrapper:
         state,
         i,
         carry,
-        net_state: NetState,
-        train_config: TrainConfig,
-    ):
-        carry, variances = carry
+        train_state: TrainState,
+    ) -> Tuple[jax.Array, C, Infos]:
         rng, key = jax.random.split(key)
         no_noise_act, wrapped_carry, wrapped_infos = self.wrapped_policy(
             key=rng,
             state=state,
             i=i,
             carry=carry,
-            net_state=net_state,
-            train_config=train_config,
+            train_state=train_state,
         )
 
         rng, key = jax.random.split(key)
-        noise = jax.random.normal(rng, shape=no_noise_act.shape) * jnp.sqrt(variances)
+        unit_noise = jax.random.normal(rng, shape=no_noise_act.shape)
+        scaled_noise = unit_noise * jnp.sqrt(self.variances)
 
-        noised_act = no_noise_act + noise
+        noisy_act = no_noise_act + scaled_noise
 
-        return noised_act, (wrapped_carry, variances), wrapped_infos
+        return noisy_act, wrapped_carry, wrapped_infos

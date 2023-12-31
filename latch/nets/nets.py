@@ -1,18 +1,22 @@
-from typing import Any
+import jax_dataclasses as jdc
+
+import flax
+from flax import struct
+from flax import linen as nn
 
 import jax
 from jax import numpy as jnp
-
-import flax
-from flax import linen as nn
+from jax.tree_util import Partial
 
 from einops import einsum, rearrange
 
+from typing import Any
+
 
 class FreqLayer(nn.Module):
-    out_dim: jax.Array
-    min_freq: jax.Array = 0.25
-    max_freq: jax.Array = 512.0
+    out_dim: int = struct.field(pytree_node=False)
+    min_freq: float = 0.25
+    max_freq: float = 512.0
 
     def setup(self):
         pass
@@ -42,7 +46,7 @@ class FreqLayer(nn.Module):
 
 
 class StateEncoder(nn.Module):
-    latent_state_dim: any
+    latent_state_dim: int
 
     def setup(self):
         self.freq_layer = FreqLayer(out_dim=1024)
@@ -78,7 +82,7 @@ class StateEncoder(nn.Module):
 
 
 class StateDecoder(nn.Module):
-    state_dim: any
+    state_dim: int = struct.field(pytree_node=False)
 
     def setup(self):
         self.freq_layer = FreqLayer(out_dim=1024)
@@ -113,7 +117,7 @@ class StateDecoder(nn.Module):
 
 
 class ActionEncoder(nn.Module):
-    latent_action_dim: any
+    latent_action_dim: int = struct.field(pytree_node=False)
 
     def setup(self):
         self.freq_layer = FreqLayer(out_dim=1024)
@@ -151,7 +155,7 @@ class ActionEncoder(nn.Module):
 
 
 class ActionDecoder(nn.Module):
-    act_dim: any
+    act_dim: int = struct.field(pytree_node=False)
 
     def setup(self):
         self.freq_layer = FreqLayer(out_dim=1024)
@@ -186,22 +190,26 @@ class ActionDecoder(nn.Module):
 
 
 class TemporalEncoder(nn.Module):
-    min_freq: float = 0.2  # 5.0 second period
-    max_freq: float = 20  # 0.05 second period
+    min_freq: float = 0.015625  # 64 element period
+    max_freq: float = 0.5  # 2 element period
 
     def setup(self):
         pass
 
-    def __call__(self, x, time) -> Any:
-        d = x.shape[-1]
+    def __call__(self, x) -> Any:
+        latent_dim = x.shape[-1]
+        sequence_length = x.shape[-2]
+        indices = jnp.arange(sequence_length)
 
         # Compute frequencies
         freqs = jnp.logspace(
-            jnp.log10(self.min_freq), jnp.log10(self.max_freq), num=d // 2
+            jnp.log10(self.min_freq),
+            jnp.log10(self.max_freq),
+            num=latent_dim // 2,
         )
 
         # Get phases
-        phases = time * freqs
+        phases = einsum(indices, freqs, "i, d -> i d")
 
         # Compute sines and cosines of phases
         sines = jnp.sin(phases)
@@ -209,16 +217,18 @@ class TemporalEncoder(nn.Module):
 
         # Give it the dims it needs
         freq_result = jnp.concatenate([sines, cosines])
-        freq_result = jnp.zeros_like(x).at[0 : freq_result.shape[0]].set(freq_result)
+        freq_result = (
+            jnp.zeros_like(x).at[..., 0 : freq_result.shape[0]].set(freq_result)
+        )
 
         # Combine with input and return
         return x + freq_result
 
 
 class TransformerLayer(nn.Module):
-    dim: int
-    heads: int
-    dropout: float
+    dim: int = struct.field(pytree_node=False)
+    heads: int = struct.field(pytree_node=False)
+    dropout: float = 0.0
 
     def setup(self):
         self.attention = nn.MultiHeadDotProductAttention(
@@ -246,16 +256,44 @@ class TransformerLayer(nn.Module):
         return x
 
 
-def make_inds(mask_len, first_known_i):
-    inds = jnp.arange(mask_len) - first_known_i
-    return inds
+@Partial(jax.jit, static_argnums=(0,))
+def make_indices(mask_len: int, zero_index: int):
+    """Generates increasing indices.
+
+    Args:
+        mask_len (int): Length of the mask.
+        zero_index (int): Index at which to place 0, before which all values are negative, and after which all values are positive.
+
+    Returns:
+        jax.Array: The indices.
+    """
+
+    indices = jnp.arange(mask_len) - zero_index
+    return indices
+
+
+@Partial(jax.jit, static_argnums=(0,))
+def make_mask(mask_len: int, first_1_index: int):
+    """Generates a causal mask.
+
+    Args:
+        mask_len (int): Length of the mask.
+        first_1_index (int): Index of the first 1, before which all values are 0, and after which all values are 1.
+
+    Returns:
+        jax.Array: The causal mask.
+    """
+
+    indices = make_indices(mask_len, first_1_index)
+    mask = indices >= 0
+    return mask
 
 
 class TransitionModel(nn.Module):
-    latent_state_dim: int
-    n_layers: int
-    latent_dim: int
-    heads: int
+    latent_state_dim: int = struct.field(pytree_node=False)
+    n_layers: int = struct.field(pytree_node=False)
+    latent_dim: int = struct.field(pytree_node=False)
+    heads: int = struct.field(pytree_node=False)
 
     def setup(self):
         self.temporal_encoder = TemporalEncoder()
@@ -278,13 +316,8 @@ class TransitionModel(nn.Module):
         self,
         initial_latent_state,
         latent_actions,
-        times,
         current_action_i,
     ) -> Any:
-        inds = make_inds(latent_actions.shape[0], current_action_i)
-        mask = inds >= 0
-        masked_action_times = mask * times[inds]
-
         state_actions = jax.vmap(
             lambda s, a: jnp.concatenate([s, a]),
             (None, 0),
@@ -294,7 +327,10 @@ class TransitionModel(nn.Module):
         x = jax.vmap(self.state_action_expander.__call__)(state_actions)
 
         # Apply temporal encodings
-        x = jax.vmap(self.temporal_encoder)(x, masked_action_times)
+        x = self.temporal_encoder(x)
+
+        # Make mask
+        mask = make_mask(len(x), current_action_i)
 
         # Apply transformer layers
         for t_layer in self.t_layers:
@@ -304,3 +340,23 @@ class TransitionModel(nn.Module):
         x = self.state_condenser(x)
 
         return x
+
+
+@jdc.pytree_dataclass
+class Nets:
+    state_encoder: StateEncoder
+    action_encoder: ActionEncoder
+    transition_model: TransitionModel
+    state_decoder: StateDecoder
+    action_decoder: ActionDecoder
+
+    latent_state_radius: float
+    latent_action_radius: float
+
+    @property
+    def latent_state_dim(self):
+        return self.state_encoder.latent_state_dim
+
+    @property
+    def latent_action_dim(self):
+        return self.action_encoder.latent_action_dim

@@ -1,5 +1,5 @@
-from learning.train_state import TrainState, NetState
-from learning.train_config import TrainConfig
+from latch.latch_state import TrainState, NetState
+from latch.latch_config import TrainConfig
 
 from nets.nets import make_inds
 

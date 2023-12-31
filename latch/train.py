@@ -1,8 +1,8 @@
-from env.finger import Finger
+from latch.env.finger.finger import Finger
 
-from learning.eval_actor import eval_batch_actor
+from latch.eval_actor import eval_batch_actor
 
-from learning.train_state import TrainConfig, TrainState
+from latch import LatchState, LatchConfig
 
 from learning.training.train_rollout import train_rollout
 

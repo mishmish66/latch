@@ -1,16 +1,6 @@
-from learning.training.train_step import train_step
+from latch.latch_state import TrainState
 
-from learning.train_state import TrainState
-
-from nets.inference import (
-    encode_state,
-    encode_action,
-    decode_state,
-    decode_action,
-    infer_states,
-    get_neighborhood_states,
-    get_neighborhood_actions,
-)
+from ..loss import Loss
 
 from einops import rearrange
 
@@ -49,10 +39,17 @@ def train_epoch(states, actions, train_state: TrainState):
         train_state = carry
         batch_states, batch_actions = batch
 
-        # Do the train step
-        train_state = train_step(batch_states, batch_actions, train_state)
+        # Fork out a key from the train_state
+        rng, train_state = train_state.split_key()
 
-        return train_state, None
+        # Do the train step
+        next_train_state = train_state.train_step(
+            rng,
+            batch_states,
+            batch_actions,
+        )
+
+        return next_train_state, None
 
     # Run the scan
     init_carry = train_state
