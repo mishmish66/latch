@@ -1,3 +1,5 @@
+from .state import NetParams, ModelState
+
 from .nets import (
     StateEncoder,
     ActionEncoder,
@@ -7,5 +9,3 @@ from .nets import (
     Nets,
     make_mask,
 )
-
-from .net_state import NetState

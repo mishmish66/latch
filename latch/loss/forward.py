@@ -1,17 +1,21 @@
 from .loss import SigmoidGatedLoss
 
-from latch.nets import NetState, make_mask
+from latch.models import ModelState, make_mask
 
 from latch import Infos
+
+import jax_dataclasses as jdc
 
 import jax
 from jax import numpy as jnp
 
+from overrides import override
+
 from einops import einsum
 
-from typing import override, Tuple
+from typing import Tuple
 
-
+@jdc.pytree_dataclass(kw_only=True)
 class ForwardLoss(SigmoidGatedLoss):
     """Computes the forward loss for a batch of trajectories."""
 
@@ -21,16 +25,16 @@ class ForwardLoss(SigmoidGatedLoss):
         key: jax.Array,
         states: jax.Array,
         actions: jax.Array,
-        net_state: NetState,
-    ) -> Tuple[float, Infos]:
+        models: ModelState,
+    ) -> Tuple[jax.Array, Infos]:
         """Computes the forward loss for a set of states and actions.
 
         Args:
             key (PRNGKey): Random seed to calculate the loss.
             states (array): An (b x l x s) array of b trajectories of l states with dim s
             actions (array): An (b x l x a) array of b trajectories of l actions with dim a
-            net_state (TrainState): The network weights.
-
+            models (ModelState): The models to use.
+            
         Returns:
             (scalar, Info): A tuple containing the loss value and associated info object.
         """
@@ -52,18 +56,18 @@ class ForwardLoss(SigmoidGatedLoss):
                 (scalar): The loss value.
             """
 
-            latent_states = jax.vmap(net_state.encode_state)(state=states)
+            latent_states = jax.vmap(models.encode_state)(state=states)
 
             latent_prev_states = latent_states[:-1]
             latent_next_states = latent_states[1:]
             latent_start_state = latent_states[start_state_idx]
 
-            latent_actions = jax.vmap(net_state.encode_action)(
+            latent_actions = jax.vmap(models.encode_action)(
                 action=actions,
                 latent_state=latent_prev_states,
             )
 
-            latent_next_state_prime = net_state.infer_states(
+            latent_next_state_prime = models.infer_states(
                 latent_start_state=latent_start_state,
                 latent_actions=latent_actions,
                 current_action_i=start_state_idx,
@@ -95,7 +99,7 @@ class ForwardLoss(SigmoidGatedLoss):
             start_state_idx=start_state_idxs,
         )
 
-        loss = jnp.mean(losses).item()
+        loss = jnp.mean(losses)
 
         infos = Infos()
         infos = infos.add_info("loss", loss)

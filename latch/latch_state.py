@@ -1,5 +1,5 @@
 from latch import LatchConfig
-from latch.nets import NetState
+from latch.models import ModelState, NetParams, Nets
 from latch import Infos
 
 import optax
@@ -17,13 +17,13 @@ class LatchState:
     key: jax.Array
     step: int
     rollout: int
-    target_net_state: NetState
-    primary_net_state: NetState
+    target_params: NetParams
+    primary_params: NetParams
     opt_state: Any
     config: LatchConfig
 
     @classmethod
-    def init(cls, key, config: LatchConfig) -> "LatchState":
+    def random_initial_state(cls, key, config: LatchConfig):
         rng, key = jax.random.split(key)
 
         rng, key = jax.random.split(key)
@@ -45,7 +45,6 @@ class LatchState:
             rngs[3],
             jnp.ones([config.latent_state_dim]),
             jnp.ones([16, config.latent_action_dim]),
-            jnp.ones(16),
             10,
         )
         state_decoder_params: Dict[str, Any] = nets.state_decoder.init(  # type: ignore
@@ -58,25 +57,24 @@ class LatchState:
             jnp.ones(config.latent_state_dim),
         )
 
-        target_net_state = NetState(
+        target_params = NetParams(
             state_encoder_params=state_encoder_params,
             action_encoder_params=action_encoder_params,
             transition_model_params=transition_model_params,
             state_decoder_params=state_decoder_params,
             action_decoder_params=action_decoder_params,
-            nets=nets,
         )
 
-        primary_net_state = target_net_state
+        primary_params = target_params
 
-        opt_state = train_config.optimizer.init(primary_net_state)  # type: ignore
+        opt_state = config.optimizer.init(primary_params)  # type: ignore
 
         return cls(
             key=key,
             step=0,
             rollout=0,
-            target_net_state=target_net_state,
-            primary_net_state=primary_net_state,
+            target_params=target_params,
+            primary_params=primary_params,
             opt_state=opt_state,
             config=config,
         )
@@ -88,16 +86,17 @@ class LatchState:
             self.primary_net_state,  # type: ignore
         )
 
-        new_primary_net_state: NetState = optax.apply_updates(
+        new_primary_params: NetParams = optax.apply_updates(
             self.primary_net_state,  # type: ignore
             updates,
         )
 
-        return self.replace(  # type: ignore
-            step=self.step + 1,
-            opt_state=new_opt_state,
-            primary_net_state=new_primary_net_state,
-        )
+        with jdc.copy_and_mutate(self) as new_state:
+            new_state.primary_params = new_primary_params
+            new_state.opt_state = new_opt_state
+            new_state.step += 1
+
+        return new_state
 
     def pull_target(self) -> "LatchState":
         target_factor = self.config.target_net_tau
@@ -108,13 +107,14 @@ class LatchState:
 
         new_target_net_state = jax.tree_map(
             leaf_interpolate,
-            self.target_net_state,
-            self.primary_net_state,
+            self.target_params,
+            self.primary_params,
         )
 
-        return self.replace(  # type: ignore
-            target_net_state=new_target_net_state,
-        )
+        with jdc.copy_and_mutate(self) as new_state:
+            new_state.target_params = new_target_net_state
+
+        return new_state
 
     def split_key(self) -> Tuple[jax.Array, "LatchState"]:
         """This is a method that splits the key and returns the new key and the new train_state.
@@ -123,7 +123,11 @@ class LatchState:
             (PRNGKey, TrainState): A new key and a new train_state.
         """
         rng, key = jax.random.split(self.key)
-        return rng, self.replace(key=key)  # type: ignore
+
+        with jdc.copy_and_mutate(self) as new_state:
+            new_state.key = key
+
+        return rng, new_state
 
     def is_done(self):
         return self.rollout >= self.config.rollouts
@@ -146,14 +150,15 @@ class LatchState:
         """
         rng, key = jax.random.split(key)
 
-        def loss_for_grad(net_state: NetState):
+        def loss_for_grad(net_params: NetParams):
             """A small function that computes the loss only as a function of the net state for the gradient transformation."""
 
+            models = ModelState(net_params=net_params, nets=self.config.nets)
             loss, infos = self.config.latch_loss(
                 key=rng,
                 states=states,
                 actions=actions,
-                net_state=net_state,
+                models=models,
             )
 
             return loss, infos
@@ -170,3 +175,11 @@ class LatchState:
         next_train_state = self.apply_gradients(loss_grad)
 
         return next_train_state, infos
+
+    @property
+    def primary_models(self):
+        return ModelState(net_params=self.primary_params, nets=self.config.nets)
+
+    @property
+    def target_models(self):
+        return ModelState(net_params=self.target_params, nets=self.config.nets)

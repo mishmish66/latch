@@ -11,7 +11,9 @@ import jax
 from jax import numpy as jnp
 from jax.experimental import io_callback
 from jax.experimental.host_callback import id_tap
-from jax.tree_util import Partial
+from jax.tree_util import Partial, register_pytree_node_class
+
+from overrides import override
 
 import wandb
 
@@ -19,15 +21,20 @@ import numpy as np
 
 from pathlib import Path
 
-from typing import Optional, override, Any
+from typing import Optional, Any
 
 
-@jdc.pytree_dataclass(init=False, kw_only=True)
+@jdc.pytree_dataclass(kw_only=True)
 class Finger(Env):
     """The finger environment."""
 
-    def __init__(
-        self,
+    _host_model: jdc.Static[mujoco.MjModel]  # type: ignore
+    _model: mjx.Model
+    _renderer: jdc.Static[JAXRenderer]
+
+    @classmethod
+    def init(
+        cls,
         action_bounds: Optional[jax.Array] = None,
         dt: Optional[float] = None,  # type: ignore
         substep: int = 32,
@@ -37,36 +44,39 @@ class Finger(Env):
         xml_path = this_file_path.parent / "assets" / "scene.xml"
 
         # Load the model and renderer
-        self.__host_model = mujoco.MjModel.from_xml_path(str(xml_path))  # type: ignore
+        host_model = mujoco.MjModel.from_xml_path(str(xml_path))  # type: ignore
 
         # Compute the configuration
         if action_bounds is None:
-            action_bounds = jnp.array(self.__host_model.actuator_ctrlrange)
+            action_bounds = jnp.array(host_model.actuator_ctrlrange)
 
-        state_dim = self.__host_model.nq + self.__host_model.nv
+        state_dim = host_model.nq + host_model.nv
 
-        action_dim = self.__host_model.nu
+        action_dim = host_model.nu
 
         if dt is None:
-            dt = self.__host_model.opt.timestep * substep
+            dt = host_model.opt.timestep * substep
 
-        super().__init__(
+        # Update model
+        substep_dt = dt / substep  # type: ignore
+        host_model.opt.timestep = substep_dt
+        host_model = host_model
+        model = mjx.put_model(host_model)
+        renderer = JAXRenderer(host_model, 512, 512)
+
+        return cls(
             action_bounds=action_bounds,
             state_dim=state_dim,
             action_dim=action_dim,
             dt=dt,  # type: ignore
             substep=substep,
+            _host_model=host_model,
+            _model=model,
+            _renderer=renderer,
         )
 
-        # Update model
-        substep_dt = self.dt / self.substep
-        self.__host_model.opt.timestep = substep_dt
-        self.__host_model = self.__host_model
-        self.__model = mjx.put_model(self.__host_model)
-        self.__renderer = JAXRenderer(self.__host_model, 512, 512)
-
     @override
-    def dense_step(self, state, action):
+    def dense_step(self, state: jax.Array, action: jax.Array) -> jax.Array:
         """Steps the environment forward one step.
 
         Args:
@@ -74,11 +84,11 @@ class Finger(Env):
             action (array): An (a,) array of the action to take.
 
         Returns:
-            (array, array): The next state and a (substep x s) array of the states between substeps.
+            (array): A (substep x s) array of the states between substeps.
         """
 
         # Make the data
-        data = mjx.make_data(self.__model)
+        data = mjx.make_data(self._model)
 
         # TODO: See if we still need this
         # Filter out nans in the action
@@ -86,14 +96,14 @@ class Finger(Env):
         ctrl = jnp.where(action_is_nan, data.ctrl, action)
 
         # Set the model state
-        qpos = state[: model.nq]  # type: ignore
-        qvel = state[model.nq :]  # type: ignore
+        qpos = state[: self._model.nq]  # type: ignore
+        qvel = state[self._model.nq :]  # type: ignore
 
         data = data.replace(qpos=qpos, qvel=qvel, ctrl=ctrl)
 
         def scanf(data, _):
             data = data.replace(ctrl=ctrl)
-            next_data = mjx.step(self.__model, data)
+            next_data = mjx.step(self._model, data)
             next_state = self._data_to_obs(data)
             return next_data, next_state
 
@@ -119,28 +129,28 @@ class Finger(Env):
         return jnp.concatenate([data.qpos, data.qvel], dtype=jnp.float32)
 
     @override
-    def reset(self):
+    def reset(self) -> jax.Array:
         """Initializes the environment state array.
 
         Returns:
             array: An (s,) array of the state.
         """
-        data = mjx.make_data(self.__model)
+        data = mjx.make_data(self._model)
         data = data.replace(qpos=jnp.array([0, 0, 0]))
 
         return self._data_to_obs(data)
 
     def render(self, state):
-        data = mjx.make_data(self.__model)
+        data = mjx.make_data(self._model)
 
-        nq = self.__model.nq
+        nq = self._model.nq
 
         data = data.replace(qpos=state[:nq])
         data = data.replace(qvel=state[nq:])
 
-        data = mjx.forward(self.__model, data)
+        data = mjx.forward(self._model, data)
 
-        img = self.__renderer.render(data, "topdown").transpose(2, 0, 1)
+        img = self._renderer.render(data, "topdown").transpose(2, 0, 1)
 
         return img
 

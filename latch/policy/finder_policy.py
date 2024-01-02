@@ -1,7 +1,7 @@
 from .optimizer_policy import OptimizerPolicy
 
 from latch import LatchState
-from latch.nets import make_mask
+from latch.models import make_mask
 
 import jax_dataclasses as jdc
 
@@ -10,7 +10,7 @@ from jax.tree_util import Partial
 import jax
 from jax import numpy as jnp
 
-from typing import override
+from overrides import override
 
 
 @jdc.pytree_dataclass(kw_only=True)
@@ -25,8 +25,8 @@ class FinderPolicy(OptimizerPolicy):
         latent_start_state,
         train_state: LatchState,
         current_action_i=0,
-    ) -> float:
-        latent_states_prime = train_state.target_net_state.infer_states(
+    ) -> jax.Array:
+        latent_states_prime = train_state.target_models.infer_states(
             latent_start_state=latent_start_state,
             latent_actions=latent_actions,
             current_action_i=current_action_i,

@@ -1,7 +1,7 @@
 from .loss import LatchLoss
 from latch.env import Env
 
-from latch.nets import Nets
+from latch.models import Nets
 
 import optax
 
@@ -14,25 +14,21 @@ from typing import Any
 
 @jdc.pytree_dataclass
 class LatchConfig:
-    optimizer: optax.GradientTransformation
+    optimizer: jdc.Static[optax.GradientTransformation]
 
     env: Env
 
     nets: Nets
     latch_loss: LatchLoss = LatchLoss()
 
-    learning_rate: Any = 1e-3
-
     # Declare anything that could possibly decide a shape as static
     rollouts: jdc.Static[int] = 1024
     epochs: jdc.Static[int] = 128
     batch_size: jdc.Static[int] = 256
-    every_k: jdc.Static[int] = 1
     traj_per_rollout: jdc.Static[int] = 2048
     rollout_length: jdc.Static[int] = 250
 
     target_net_tau: float = 0.05
-    transition_factor: float = 1.0
 
     @property
     def state_dim(self):

@@ -1,9 +1,7 @@
-from policy.policy import Policy
+from .policy import Policy
 
-from latch import LatchState, LatchConfig
-from nets import NetState, make_mask
-
-from infos import Infos
+from latch import LatchState, LatchConfig, Infos
+from latch.models import ModelState, make_mask
 
 import jax_dataclasses as jdc
 
@@ -23,7 +21,7 @@ def optimize_actions(
     start_state,
     initial_guess,
     cost_func: Callable[[jax.Array, jax.Array, jax.Array, int], float],
-    net_state: NetState,
+    models: ModelState,
     train_config: LatchConfig,
     start_state_idx=0,
     big_step_size=0.5,
@@ -53,7 +51,7 @@ def optimize_actions(
     causal_mask = make_mask(horizon, start_state_idx)
 
     rng, key = jax.random.split(key)
-    latent_start_state = net_state.encode_state(start_state)
+    latent_start_state = models.encode_state(start_state)
 
     def big_scanf(current_plan, key):
         rng, key = jax.random.split(key)
@@ -104,8 +102,6 @@ def optimize_actions(
                 cost_func,
                 key=rng,
                 latent_start_state=latent_start_state,
-                net_state=net_state,
-                train_config=train_config,
                 current_action_i=start_state_idx,
             )(latent_actions=current_plan)
 
@@ -170,7 +166,7 @@ class OptimizerPolicy(Policy[jax.Array], ABC):
         latent_start_state: jax.Array,
         train_state: LatchState,
         current_action_i=0,
-    ) -> float:
+    ) -> jax.Array:
         raise NotImplementedError("Must be implemented by subclass.")
 
     def make_init_carry(
@@ -198,7 +194,7 @@ class OptimizerPolicy(Policy[jax.Array], ABC):
             start_state=start_state,
             initial_guess=random_latent_actions,
             cost_func=cost_func,
-            net_state=train_state.target_net_state,
+            models=train_state.target_models,
             train_config=train_state.config,
             start_state_idx=0,
             big_step_size=self.big_step_size,
@@ -228,7 +224,7 @@ class OptimizerPolicy(Policy[jax.Array], ABC):
         carry: jax.Array,
         train_state: LatchState,
     ):
-        last_guess, aux = carry
+        last_guess = carry
 
         cost_func = Partial(self.cost_func, train_state=train_state)
 
@@ -238,7 +234,7 @@ class OptimizerPolicy(Policy[jax.Array], ABC):
             start_state=state,
             initial_guess=last_guess,
             cost_func=cost_func,
-            net_state=train_state.primary_net_state,
+            models=train_state.target_models,
             train_config=train_state.config,
             start_state_idx=i,
             big_steps=self.big_post_steps,
@@ -246,9 +242,7 @@ class OptimizerPolicy(Policy[jax.Array], ABC):
         )
 
         latent_action = next_guess[i]
-        latent_state = train_state.primary_net_state.encode_state(state)
-        action = train_state.primary_net_state.decode_action(
-            latent_action, latent_state
-        )
+        latent_state = train_state.target_models.encode_state(state)
+        action = train_state.target_models.decode_action(latent_action, latent_state)
 
-        return action, (next_guess, aux), Infos()
+        return action, next_guess, Infos()

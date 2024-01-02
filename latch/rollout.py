@@ -1,11 +1,8 @@
-from latch import LatchState
-from latch.nets import NetState
 from latch.policy import Policy, ActorPolicy
-
+from latch.models import ModelState
+from latch import LatchState, Infos
 
 from einops import rearrange
-
-from infos import Infos
 
 import jax
 from jax import numpy as jnp
@@ -58,7 +55,8 @@ def collect_rollout(
             a_min=train_state.config.env.action_bounds[..., 0],
             a_max=train_state.config.env.action_bounds[..., -1],
         )
-        next_state = train_state.config.env.step(state, action)
+        dense_states = train_state.config.env.dense_step(state, action)
+        next_state = dense_states[-1]
 
         return (next_state, i + 1, policy_carry), (
             (state, action),
@@ -94,12 +92,6 @@ def eval_actor(
     start_state,
     train_state: LatchState,
     policy: ActorPolicy,
-    big_step_size=0.5,
-    big_steps=2048,
-    small_step_size=0.005,
-    small_steps=2048,
-    big_post_steps=32,
-    small_post_steps=32,
 ):
     """Evaluates a single rollout of the actor.
 
@@ -108,31 +100,28 @@ def eval_actor(
         start_state (array): The starting state.
         train_state (TrainState): The training state.
         policy (OptimizerPolicy): The policy to use to collect the rollout.
-        big_step_size (float, optional): The big step size. Defaults to 0.5.
-        big_steps (int, optional): The number of initial big steps. Defaults to 2048.
-        small_step_size (float, optional): The small step size. Defaults to 0.005.
-        small_steps (int, optional): The number of initial small steps. Defaults to 2048.
-        big_post_steps (int, optional): The number of big steps to take each env step. Defaults to 32.
-        small_post_steps (int, optional): The number of small steps to take each env step. Defaults to 32.
 
     Returns:
         (array, Infos, array): A tuple of a (t x s) array of states, the infos from the eval, and a (t * substep x s) array of dense states.
     """
 
     rng, key = jax.random.split(key)
-    (result_states, result_actions), rollout_infos = collect_rollout(  # type: ignore
+    (result_states, result_actions), rollout_infos, dense_states = collect_rollout(  # type: ignore
         key=rng,
         start_state=start_state,
         policy=policy,
         train_state=train_state,
+        return_dense_states=True,
     )
 
-    cost = jax.vmap(policy.cost_func)()
-    final_cost = jnp.mean(jax.vmap(cost_func)(result_states))
-    infos = rollout_infos.add_plain_info("final_cost", final_cost)
-
-    return (
-        result_states,
-        infos,
-        result_dense_states,
+    # Repeat final action to match length of states
+    # TODO: This is a workaround to make the cost function work. Figure out a more elegant solution.
+    result_actions = jnp.concatenate(
+        [result_actions, result_actions[-1][None, ...]], axis=0
     )
+
+    rng, key = jax.random.split(key)
+    achieved_cost = policy.true_traj_cost_func(result_states, result_actions, 0)
+    infos = rollout_infos.add_info("achieved_cost", achieved_cost)
+
+    return result_states, infos, dense_states

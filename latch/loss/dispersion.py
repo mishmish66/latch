@@ -1,6 +1,6 @@
 from .loss import SigmoidGatedLoss
 
-from latch.nets import NetState
+from latch.models import ModelState
 
 from latch import Infos
 
@@ -9,9 +9,11 @@ import jax_dataclasses as jdc
 import jax
 from jax import numpy as jnp
 
+from overrides import override
+
 from einops import rearrange
 
-from typing import override, Tuple
+from typing import Tuple
 
 
 @jdc.pytree_dataclass(kw_only=True)
@@ -24,15 +26,15 @@ class StateDispersionLoss(SigmoidGatedLoss):
         key: jax.Array,
         states: jax.Array,
         actions: jax.Array,
-        net_state: NetState,
-    ) -> Tuple[float, Infos]:
+        models: ModelState,
+    ) -> Tuple[jax.Array, Infos]:
         """Computes the dispersion loss for a set of states and actions.
 
         Args:
             key (PRNGKey): Random seed to calculate the loss.
             states (array): A (b x t x s) array of n states with dim s
             actions (array): A (b x t-1 x a) array of n actions with dim a
-            net_state (NetState): The network weights to use.
+            models (ModelState): The models to use.
 
         Returns:
             (scalar, Info): A tuple containing the loss value and associated info object.
@@ -40,7 +42,7 @@ class StateDispersionLoss(SigmoidGatedLoss):
 
         states = rearrange(states, "b t s -> (b t) s")
 
-        latent_states = jax.vmap(net_state.encode_state)(state=states)
+        latent_states = jax.vmap(models.encode_state)(state=states)
 
         rng, key = jax.random.split(key)
         sampled_latent_states = jax.random.choice(
@@ -55,7 +57,7 @@ class StateDispersionLoss(SigmoidGatedLoss):
             pairwise_latent_state_diffs, ord=1, axis=-1
         )
 
-        loss = -jnp.mean(jnp.log(pairwise_latent_state_diffs_norm + 1.0)).item()
+        loss = -jnp.mean(jnp.log(pairwise_latent_state_diffs_norm + 1.0))
 
         infos = Infos()
         infos = infos.add_info("loss", loss)
@@ -73,15 +75,15 @@ class ActionDispersionLoss(SigmoidGatedLoss):
         key: jax.Array,
         states: jax.Array,
         actions: jax.Array,
-        net_state: NetState,
-    ) -> Tuple[float, Infos]:
+        models: ModelState,
+    ) -> Tuple[jax.Array, Infos]:
         """Computes the dispersion loss for a set of states and actions.
 
         Args:
             key (PRNGKey): Random seed to calculate the loss.
             states (array): A (b x t x s) array of n states with dim s
             actions (array): A (b x t-1 x a) array of n actions with dim a
-            net_state (NetState): The network weights to use.
+            models (ModelState): The models to use.
 
         Returns:
             (scalar, Info): A tuple containing the loss value and associated info object.
@@ -92,10 +94,10 @@ class ActionDispersionLoss(SigmoidGatedLoss):
         actions = rearrange(actions, "b t a -> (b t) a")
 
         latent_states = jax.vmap(
-            net_state.encode_state,
+            models.encode_state,
         )(state=states)
         latent_actions = jax.vmap(
-            net_state.encode_action,
+            models.encode_action,
         )(action=actions, latent_state=latent_states)
 
         rng, key = jax.random.split(key)
@@ -112,7 +114,7 @@ class ActionDispersionLoss(SigmoidGatedLoss):
             pairwise_latent_action_diffs, ord=1, axis=-1
         )
 
-        loss = -jnp.mean(jnp.log(pairwise_latent_action_diffs_norm + 1.0)).item()
+        loss = -jnp.mean(jnp.log(pairwise_latent_action_diffs_norm + 1.0))
 
         infos = Infos()
         infos = infos.add_info("loss", loss)

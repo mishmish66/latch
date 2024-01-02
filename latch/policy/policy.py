@@ -1,13 +1,13 @@
-from latch.learning import TrainState
-from latch.infos import Infos
+from latch import LatchState, Infos
 
 import jax
 
-from typing import Tuple
+from typing import Tuple, Generic, TypeVar
 from abc import ABC, abstractmethod
 
+C = TypeVar("C")
 
-class Policy[C](ABC):
+class Policy(ABC, Generic[C]):
     """Abstract base class for policies."""
 
     @abstractmethod
@@ -15,7 +15,7 @@ class Policy[C](ABC):
         self,
         key: jax.Array,
         start_state: jax.Array,
-        train_state: TrainState,
+        train_state: LatchState,
     ) -> Tuple[C, Infos]:
         raise NotImplementedError("make_init_carry not implemented in base class")
 
@@ -26,6 +26,6 @@ class Policy[C](ABC):
         state: jax.Array,
         i: int,
         carry: C,
-        train_state: TrainState,
+        train_state: LatchState,
     ) -> Tuple[jax.Array, C, Infos]:
         raise NotImplementedError("__call__ not implemented in base class")

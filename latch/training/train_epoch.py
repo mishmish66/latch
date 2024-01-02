@@ -1,6 +1,4 @@
-from latch.latch_state import TrainState
-
-from ..loss import Loss
+from latch import LatchState
 
 from einops import rearrange
 
@@ -8,7 +6,7 @@ import jax
 import jax.numpy as jnp
 
 
-def train_epoch(states, actions, train_state: TrainState):
+def train_epoch(states, actions, train_state: LatchState):
     """Trains the model for a single epoch.
 
     Args:
@@ -30,7 +28,7 @@ def train_epoch(states, actions, train_state: TrainState):
     actions = actions[shuffled_indices]
 
     # Batch the data
-    num_batches = len(states) // train_state.train_config.batch_size
+    num_batches = len(states) // train_state.config.batch_size
     batched_states = rearrange(states, "(b n) t s -> b n t s", b=num_batches)
     batched_actions = rearrange(actions, "(b n) t a -> b n t a", b=num_batches)
 

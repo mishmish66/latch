@@ -8,15 +8,17 @@ from mujoco import mjx
 
 import jax
 from jax import numpy as jnp
+from jax.tree_util import Partial, register_pytree_node_class
 
 import numpy as np
 
-from multiprocessing import Process, Event
-import queue
+from multiprocessing import Process, Event, Queue
+from queue import Empty as QueueEmptyException
 
 from typing import Optional, Union
 
 
+@register_pytree_node_class
 class JAXRenderer:
     def __init__(
         self,
@@ -28,14 +30,16 @@ class JAXRenderer:
     ):
         if num_workers is None:
             # Set the number of workers to the number of threads
-            num_workers = os.cpu_count()
+            # Temporarily set the number of threads to 1 for debugging
+            # num_workers = os.cpu_count()
+            num_workers = 1
         if num_workers is None:
             # Failed to get the number of threads, set to 1
             num_workers = 1
 
         self._num_workers = num_workers
         self._workers = []
-        self._queue = queue.Queue[JAXRenderWorkerTask]()
+        self._queue = Queue()
 
         self._model = model
         self._width = width
@@ -71,23 +75,28 @@ class JAXRenderer:
             return np.stack(imgs, axis=0)
 
         else:
-            task = JAXRenderWorkerTask(data, camera)
+            task = JAXRenderWorkerTask(host_data, camera)
             self._queue.put(task)
             img = task.await_result()
             return img
 
+    @Partial(jax.jit, static_argnames=("camera",))
     def render(
         self,
         data: mjx.Data,
         camera: Union[int, str] = -1,
     ):
+        # Define a callback function to bind camera to the function
+        # This avoids it being interpreted as a JAX type in case it is a string
+        def camera_bound_render_callback(data):
+            return self._host_render(data, camera)
+
         img: jax.Array = jax.pure_callback(  # type: ignore
-            callback=self._host_render,
+            callback=camera_bound_render_callback,
             result_shape_dtypes=jnp.zeros(
                 [3, self._width, self._height],
             ),
             data=data,
-            camera=camera,
         )
 
         return img
@@ -98,12 +107,38 @@ class JAXRenderer:
 
         self._queue.join()
 
+    def tree_flatten(self):
+        return (), {
+            "num_workers": self._num_workers,
+            "workers": self._workers,
+            "queue": self._queue,
+            "model": self._model,
+            "width": self._width,
+            "height": self._height,
+            "max_geom": self._max_geom,
+        }
+
+    @classmethod
+    def tree_unflatten(cls, aux_data, children):
+        # Rebuid the renderer with the same pieces
+        renderer = cls.__new__(cls)
+
+        renderer._num_workers = aux_data["num_workers"]
+        renderer._workers = aux_data["workers"]
+        renderer._queue = aux_data["queue"]
+        renderer._model = aux_data["model"]
+        renderer._width = aux_data["width"]
+        renderer._height = aux_data["height"]
+        renderer._max_geom = aux_data["max_geom"]
+
+        return renderer
+
 
 class JAXRenderWorkerTask:
     def __init__(
         self,
-        data: mjx.Data,
-        camera: Union[int, str] = -1,  # type: ignore
+        data,
+        camera: Union[int, str] = -1,
     ):
         self._result_img: Optional[np.ndarray] = None
         self.fulfill_event = Event()
@@ -123,22 +158,22 @@ class JAXRenderWorker:
     def __init__(
         self,
         renderer: mujoco.Renderer,
-        queue: queue.Queue[JAXRenderWorkerTask],
+        queue: Queue,
     ):
         self._renderer = renderer
-        self._queue = queue
 
         self._running = True
-        # Create the process
-        self._process = Process(target=self._run)
+        # Launch the worker process
+        self._process = Process(target=self._run, args=(queue,))
+        self._process.start()
 
-    def _run(self):
+    def _run(self, queue):
         while self._running:
             try:
-                task = self._queue.get(timeout=1)
+                task = queue.get(timeout=1)
                 img = self._render(task)
                 task.fulfill(img)
-            except queue.Empty:
+            except QueueEmptyException:
                 # No task, check if we should stop then continue
                 pass
 

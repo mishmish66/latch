@@ -1,14 +1,10 @@
+from .train_epoch import train_epoch
+from latch.rollout import collect_rollout
+from latch.policy import FinderPolicy, PolicyNoiseWrapper
 from latch.env import Env
-from latch.learning import collect_rollout
+from latch import LatchState, Infos
 
-from latch.policy import PolicyNoiseWrapper, FinderPolicy, RandomPolicy
-
-from learning.training.train_epoch import train_epoch
-from latch.latch_state import TrainState
-
-from latch import Infos
-
-from nets.inference import encode_state
+import jax_dataclasses as jdc
 
 import jax
 import jax.numpy as jnp
@@ -17,7 +13,7 @@ from jax.tree_util import Partial
 from typing import Tuple
 
 
-def train_rollout(train_state: TrainState) -> TrainState:
+def train_rollout(train_state: LatchState) -> LatchState:
     """Trains the model for a single rollout.
 
     Args:
@@ -34,16 +30,14 @@ def train_rollout(train_state: TrainState) -> TrainState:
     random_vectors = jax.random.normal(
         key=rng,
         shape=[
-            train_state.train_config.traj_per_rollout,
-            train_state.train_config.latent_state_dim,
+            train_state.config.traj_per_rollout,
+            train_state.config.latent_state_dim,
         ],
     )
     random_vector_norms = jnp.linalg.norm(random_vectors, ord=1, axis=-1)
     unit_norm_samples = random_vectors / random_vector_norms[..., None]
 
-    target_states = (
-        unit_norm_samples * train_state.train_config.latent_state_radius * 1.1
-    )
+    target_states = unit_norm_samples * train_state.config.latent_state_radius * 1.1
 
     # Define a function that makes a policy for a given target
     def make_policy(target: jax.Array):
@@ -55,11 +49,11 @@ def train_rollout(train_state: TrainState) -> TrainState:
     policies = jax.vmap(make_policy)(target_states)
 
     # Use the target network to run the policy
-    start_state = train_state.train_config.env.reset()
+    start_state = train_state.config.env.reset()
 
     # Collect a rollout of physics data
     rng, key = jax.random.split(key)
-    rngs = jax.random.split(rng, train_state.train_config.traj_per_rollout)
+    rngs = jax.random.split(rng, train_state.config.traj_per_rollout)
     rollout_result: Tuple[Tuple[jax.Array, jax.Array], Infos, jax.Array] = jax.vmap(
         Partial(
             collect_rollout,
@@ -78,13 +72,7 @@ def train_rollout(train_state: TrainState) -> TrainState:
     final_states = states[..., -1, :]
 
     # Compute the mean distance between the final states and the targets
-    latent_final_states = jax.vmap(
-        jax.tree_util.Partial(
-            encode_state,
-            net_state=train_state.target_net_state,
-            train_config=train_state.train_config,
-        )
-    )(final_states)
+    latent_final_states = jax.vmap(train_state.target_models.encode_state)(final_states)
     final_latent_diffs = latent_final_states - target_states
     final_latent_diff_norms = jnp.linalg.norm(final_latent_diffs, ord=1, axis=-1)
     final_latent_diff_norms_mean = jnp.mean(final_latent_diff_norms)
@@ -96,9 +84,12 @@ def train_rollout(train_state: TrainState) -> TrainState:
     infos = Infos()
     infos = infos.add_info("rollout_infos", rollout_infos)
 
+    # Log the infos
+    infos.dump_to_wandb(train_state.step)
+
     # Render one of the rollouts
     render_states = dense_states[0]
-    train_state.train_config.env.send_wandb_video(
+    train_state.config.env.send_wandb_video(
         name="Rollout Video",
         states=render_states,
         step=train_state.step,
@@ -114,13 +105,14 @@ def train_rollout(train_state: TrainState) -> TrainState:
         train_epoch_for_scan,
         train_state,
         None,
-        length=train_state.train_config.epochs,
+        length=train_state.config.epochs,
     )
 
     # Update the target network
     train_state = train_state.pull_target()
 
     # Increment the rollout counter
-    train_state = train_state.replace(rollout=train_state.rollout + 1)  # type: ignore
+    with jdc.copy_and_mutate(train_state) as train_state:
+        train_state.rollout += 1
 
     return train_state

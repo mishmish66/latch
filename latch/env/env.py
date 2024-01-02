@@ -29,7 +29,6 @@ class Env(ABC):
 
         return self.dense_step(state, action)[-1]
 
-    @abstractmethod
     def random_action(self, key: jax.Array) -> jax.Array:
         """Samples a random action from the action space.
 
@@ -49,7 +48,7 @@ class Env(ABC):
         return random_actions
 
     @abstractmethod
-    def dense_step(self, state, action) -> jax.Array:
+    def dense_step(self, state: jax.Array, action: jax.Array) -> jax.Array:
         """Steps the environment forward one step and returns the intermediate states.
 
         Args:

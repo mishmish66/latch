@@ -1,19 +1,20 @@
-from latch.learning import TrainState
-
 from .policy import Policy
-
-from latch.infos import Infos
+from latch import LatchState, Infos
 
 import jax
 from jax import numpy as jnp
 
 import jax_dataclasses as jdc
 
-from typing import TypeVar, Tuple, Callable, override
+from overrides import override
+
+from typing import TypeVar, Tuple, Callable, Generic
+
+C = TypeVar("C")
 
 
 @jdc.pytree_dataclass(kw_only=True)
-class PolicyNoiseWrapper[C](Policy[C]):
+class PolicyNoiseWrapper(Policy[C], Generic[C]):
     wrapped_policy: Policy[C]
     variances: jax.Array
 
@@ -22,7 +23,7 @@ class PolicyNoiseWrapper[C](Policy[C]):
         self,
         key,
         start_state,
-        train_state: TrainState,
+        train_state: LatchState,
     ) -> Tuple[C, Infos]:
         return self.wrapped_policy.make_init_carry(
             key=key,
@@ -36,7 +37,7 @@ class PolicyNoiseWrapper[C](Policy[C]):
         state,
         i,
         carry,
-        train_state: TrainState,
+        train_state: LatchState,
     ) -> Tuple[jax.Array, C, Infos]:
         rng, key = jax.random.split(key)
         no_noise_act, wrapped_carry, wrapped_infos = self.wrapped_policy(

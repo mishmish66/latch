@@ -1,4 +1,4 @@
-from latch.infos import Infos
+from latch import Infos
 
 import jax
 from jax import numpy as jnp

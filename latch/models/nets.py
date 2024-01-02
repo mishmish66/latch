@@ -216,9 +216,9 @@ class TemporalEncoder(nn.Module):
         cosines = jnp.cos(phases)
 
         # Give it the dims it needs
-        freq_result = jnp.concatenate([sines, cosines])
+        freq_result = jnp.concatenate([sines, cosines], axis=-1)
         freq_result = (
-            jnp.zeros_like(x).at[..., 0 : freq_result.shape[0]].set(freq_result)
+            jnp.zeros_like(x).at[..., 0 : freq_result.shape[-1]].set(freq_result)
         )
 
         # Combine with input and return
@@ -344,11 +344,11 @@ class TransitionModel(nn.Module):
 
 @jdc.pytree_dataclass
 class Nets:
-    state_encoder: StateEncoder
-    action_encoder: ActionEncoder
-    transition_model: TransitionModel
-    state_decoder: StateDecoder
-    action_decoder: ActionDecoder
+    state_encoder: jdc.Static[StateEncoder]
+    action_encoder: jdc.Static[ActionEncoder]
+    transition_model: jdc.Static[TransitionModel]
+    state_decoder: jdc.Static[StateDecoder]
+    action_decoder: jdc.Static[ActionDecoder]
 
     latent_state_radius: float
     latent_action_radius: float

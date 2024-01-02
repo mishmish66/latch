@@ -9,13 +9,16 @@ from .dispersion import StateDispersionLoss, ActionDispersionLoss
 from .loss import Loss
 
 from latch.infos import Infos
-from latch.nets import NetState
+from latch.models import ModelState
 
 import jax_dataclasses as jdc
 
 import jax
 
-from typing import override
+from overrides import override
+
+from typing import Tuple
+
 
 @jdc.pytree_dataclass
 class LatchLoss(Loss):
@@ -48,15 +51,15 @@ class LatchLoss(Loss):
         key: jax.Array,
         states: jax.Array,
         actions: jax.Array,
-        net_state: NetState,
-    ):
+        models: ModelState,
+    ) -> Tuple[jax.Array, Infos]:
         """Compute the loss for a batch of trajectories.
 
         Args:
             key (PRNGKey): Random seed to calculate the loss.
             states (jax.Array): An (b x t x s) array of b trajectories of l states with dim s
             actions (jax.Array): An (b x t-1 x a) array of b trajectories of l-1 actions with dim a
-            net_state (NetState): The network weights.
+            models (ModelState): The models to use.
 
         Returns:
             (Losses, Infos): A tuple containing the loss object and associated infos object.
@@ -69,7 +72,7 @@ class LatchLoss(Loss):
         loss_args = {
             "states": states,
             "actions": actions,
-            "net_state": net_state,
+            "models": models,
         }
         rng, key = jax.random.split(key)
         (
@@ -110,7 +113,7 @@ class LatchLoss(Loss):
             forward_infos,
         ) = self.forward_loss(
             key=rng,
-            gate_in=forward_gate_in,
+            gate_in=forward_gate_in,  # type: ignore
             **loss_args,
         )
 
@@ -126,7 +129,7 @@ class LatchLoss(Loss):
             state_condensation_info,
         ) = self.state_condensation_loss(
             key=rng,
-            gate_in=condensation_gate_in,
+            gate_in=condensation_gate_in,  # type: ignore
             **loss_args,
         )
 
@@ -136,7 +139,7 @@ class LatchLoss(Loss):
             action_condensation_info,
         ) = self.action_condensation_loss(
             key=rng,
-            gate_in=condensation_gate_in,
+            gate_in=condensation_gate_in,  # type: ignore
             **loss_args,
         )
 
@@ -161,7 +164,7 @@ class LatchLoss(Loss):
             smoothness_info,
         ) = self.smoothness_loss(
             key=rng,
-            gate_in=smoothness_gate_in,
+            gate_in=smoothness_gate_in,  # type: ignore
             **loss_args,
         )
 
@@ -176,7 +179,7 @@ class LatchLoss(Loss):
             state_dispersion_info,
         ) = self.state_dispersion_loss(
             key=rng,
-            gate_in=dispersion_gate_in,
+            gate_in=dispersion_gate_in,  # type: ignore
             **loss_args,
         )
 
@@ -186,7 +189,7 @@ class LatchLoss(Loss):
             action_dispersion_info,
         ) = self.action_dispersion_loss(
             key=rng,
-            gate_in=dispersion_gate_in,
+            gate_in=dispersion_gate_in,  # type: ignore
             **loss_args,
         )
 
