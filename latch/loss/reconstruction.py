@@ -16,6 +16,7 @@ from einops import rearrange
 
 from typing import Tuple
 
+
 @jdc.pytree_dataclass(kw_only=True)
 class StateReconstructionLoss(WeightedLoss):
     """Computes the action reconstruction loss for a set of states and actions."""
@@ -60,6 +61,7 @@ class StateReconstructionLoss(WeightedLoss):
         infos = infos.add_info("loss", loss)
 
         return loss, infos
+
 
 @jdc.pytree_dataclass(kw_only=True)
 class ActionReconstructionLoss(WeightedLoss):

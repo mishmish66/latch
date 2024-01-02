@@ -50,9 +50,6 @@ class JAXRenderer:
 
     def _init_workers(self):
         for _ in range(self._num_workers):
-            renderer = mujoco.Renderer(
-                self._model, self._width, self._height, self._max_geom
-            )
             self._workers.append(JAXRenderWorker(renderer, self._queue))
 
     def _host_render(
@@ -155,34 +152,41 @@ class JAXRenderWorkerTask:
 
 
 class JAXRenderWorker:
-    def __init__(
-        self,
-        renderer: mujoco.Renderer,
-        queue: Queue,
-    ):
+    def __init__(self, queue: Queue, model, width: int, height: int, max_geom: int):
         self._renderer = renderer
 
         self._running = True
         # Launch the worker process
-        self._process = Process(target=self._run, args=(queue,))
+        self._process = Process(
+            target=self._render_loop, args=(queue, model, width, height, max_geom)
+        )
         self._process.start()
 
-    def _run(self, queue):
+    @staticmethod
+    def _render_loop(queue, model, width, height, max_geom):
+        # Create a renderer on the host
+        renderer = mujoco.Renderer(model, width, height, max_geom)
+
+        # Define a function to call the renderer
+        def render(self, task: JAXRenderWorkerTask):
+            host_data = mjx.get_data(self._renderer.model, task.data)
+            renderer.update_scene(host_data, task.camera)
+            img = renderer.render()
+
+            return img
+
+        # Poll the queue for render tasks and also make sure we are still running
         while self._running:
             try:
                 task = queue.get(timeout=1)
-                img = self._render(task)
+                img = render(task)
                 task.fulfill(img)
             except QueueEmptyException:
                 # No task, check if we should stop then continue
                 pass
 
-    def _render(self, task: JAXRenderWorkerTask):
-        host_data = mjx.get_data(self._renderer.model, task.data)
-        self._renderer.update_scene(host_data, task.camera)
-        img = self._renderer.render()
-
-        return img
+        # Close the renderer
+        renderer.close()
 
     def close(self):
         self._running = False

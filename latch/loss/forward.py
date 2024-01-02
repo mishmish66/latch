@@ -15,6 +15,7 @@ from einops import einsum
 
 from typing import Tuple
 
+
 @jdc.pytree_dataclass(kw_only=True)
 class ForwardLoss(SigmoidGatedLoss):
     """Computes the forward loss for a batch of trajectories."""
@@ -34,7 +35,7 @@ class ForwardLoss(SigmoidGatedLoss):
             states (array): An (b x l x s) array of b trajectories of l states with dim s
             actions (array): An (b x l x a) array of b trajectories of l actions with dim a
             models (ModelState): The models to use.
-            
+
         Returns:
             (scalar, Info): A tuple containing the loss value and associated info object.
         """

@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 
 C = TypeVar("C")
 
+
 class Policy(ABC, Generic[C]):
     """Abstract base class for policies."""
 
