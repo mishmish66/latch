@@ -1,0 +1,125 @@
+<mujoco model="go1">
+    <compiler angle="radian" meshdir="assets" autolimits="true" />
+
+    <!-- <option cone="elliptic" impratio="100" /> -->
+
+    <default>
+        <default class="go1">
+            <geom friction="0.6" margin="0.001" condim="3" />
+            <joint axis="0 1 0" damping="2" armature="0.01" frictionloss="0.2" />
+            <position kp="100" forcerange="-23.7 23.7" />
+            <default class="abduction">
+                <joint axis="1 0 0" damping="1" range="-0.863 0.863" />
+                <position ctrlrange="-0.863 0.863" />
+            </default>
+            <default class="hip">
+                <joint ref="-1.35" />
+                <position ctrlrange="-0.5 0.5" />
+            </default>
+            <default class="knee">
+                <joint ref="1.7" />
+                <position forcerange="-35.55 35.55" ctrlrange="-0.5 1.5" />
+            </default>
+            <default class="visual">
+                <geom type="mesh" contype="0" conaffinity="0" group="2" material="dark" />
+            </default>
+            <default class="collision">
+                <geom group="3" type="capsule" />
+                <default class="hip_left1">
+                    <geom size="0.046 0.02" pos="0 0.045 0" quat="1 1 0 0" type="cylinder" />
+                </default>
+                <default class="hip_left2">
+                    <geom size="0.031 0.02" pos="0 0.065 0" quat="1 1 0 0" type="cylinder" />
+                </default>
+                <default class="hip_left3">
+                    <geom size="0.046 0.02" quat="1 1 0 0" type="cylinder" />
+                </default>
+                <default class="hip_right1">
+                    <geom size="0.046 0.02" pos="0 -0.045 0" quat="1 1 0 0" type="cylinder" />
+                </default>
+                <default class="hip_right2">
+                    <geom size="0.031 0.02" pos="0 -0.065 0" quat="1 1 0 0" type="cylinder" />
+                </default>
+                <default class="hip_right3">
+                    <geom size="0.046 0.02" quat="1 1 0 0" type="cylinder" />
+                </default>
+                <default class="thigh1">
+                    <geom size="0.015" fromto="-0.02 0 0 -0.02 0 -0.16" />
+                </default>
+                <default class="thigh2">
+                    <geom size="0.015" fromto="0 0 0 -0.02 0 -0.1" />
+                </default>
+                <default class="thigh3">
+                    <geom size="0.015" fromto="-0.02 0 -0.16 0 0 -0.2" />
+                </default>
+                <default class="calf1">
+                    <geom size="0.01" fromto="0 0 0 0.02 0 -0.13" />
+                </default>
+                <default class="calf2">
+                    <geom size="0.01" fromto="0.02 0 -0.13 0 0 -0.2" />
+                </default>
+                <default class="foot">
+                    <geom type="sphere" size="0.023" pos="0 0 -0.213" priority="1"
+                        solimp="0.015 1 0.031" condim="3"
+                        friction="0.8 0.02 0.01" />
+                </default>
+            </default>
+        </default>
+    </default>
+
+    <asset>
+        <material name="dark" rgba="0.1 0.1 0.1 1" />
+        <mesh class="go1" file="trunk.stl" />
+        <mesh class="go1" file="hip.stl" />
+        <mesh class="go1" file="thigh_mirror.stl" />
+        <mesh class="go1" file="calf.stl" />
+        <mesh class="go1" file="thigh.stl" />
+
+        <texture type="cube" name="wheel" builtin="checker" rgb1="0.2 0.3 0.4"
+            rgb2="0.76 0.07 0.24" width="300" height="300" />
+        <material name="wheel" texture="wheel" texuniform="true" texrepeat="5 5"
+            reflectance="0.2" />
+    </asset>
+
+    <worldbody>
+        <body name="wheel" pos="0.5 0 0.35">
+            <joint name="wheel_axis" springdamper="1 10" />
+            <geom type="capsule" size="0.2 0.1" material="wheel" />
+            <inertial pos="0 0 0" mass="0.5" diaginertia="0.01 0.01 0.02" />
+        </body>
+        <light name="spotlight" mode="targetbodycom" target="FR_thigh" pos="0 -1 2" />
+        <body name="FR_thigh" pos="0 -0.08 0.35" euler="-1.5708 -2.3562 0">
+            <inertial pos="-0.00304722 0.019315 -0.0305004"
+                quat="0.65243 -0.0272313 0.0775126 0.753383" mass="1.009"
+                diaginertia="0.00478717 0.00460903 0.000709268" />
+            <joint class="hip" name="FR_thigh_joint" />
+            <geom class="visual" mesh="thigh_mirror" />
+            <geom class="thigh1" />
+            <geom class="thigh2" />
+            <geom class="thigh3" />
+            <body name="FR_calf" pos="0 0 -0.213">
+                <inertial pos="0.00429862 0.000976676 -0.146197"
+                    quat="0.691246 0.00357467 0.00511118 0.722592"
+                    mass="0.195862" diaginertia="0.00149767 0.00148468 3.58427e-05" />
+                <joint class="knee" name="FR_calf_joint" />
+                <geom class="visual" mesh="calf" />
+                <geom class="calf1" />
+                <geom class="calf2" />
+                <geom name="FR" class="foot" />
+                <site name="FR" pos="0 0 -0.213" type="sphere" size="0.023" group="5" />
+            </body>
+        </body>
+        <camera name="main_cam" pos="0 -1.0 1.0" mode="targetbody" target="wheel" />
+        <camera name="topdown" pos="0.25 0.0 1.5" euler="0 0 1.5708" />
+    </worldbody>
+
+    <actuator>
+        <position class="hip" name="FR_thigh" joint="FR_thigh_joint" forcerange="-20 20" />
+        <position class="knee" name="FR_calf" joint="FR_calf_joint" forcerange="-20 20" />
+    </actuator>
+
+    <visual>
+        <global offwidth="1024" offheight="1024" />
+    </visual>
+
+</mujoco>
