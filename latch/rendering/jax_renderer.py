@@ -2,20 +2,20 @@
 import os
 
 os.environ["MUJOCO_GL"] = "EGL"
-
-import mujoco
-from mujoco import mjx
+import multiprocessing
+import pickle
+from multiprocessing import Event, Process, Queue
+from queue import Empty as QueueEmptyException
+from typing import Optional, Union
 
 import jax
-from jax import numpy as jnp
-from jax.tree_util import Partial, register_pytree_node_class
-
+import mujoco
 import numpy as np
+from jax import config, core
+from jax import numpy as jnp
 
-from multiprocessing import Process, Event, Queue
-from queue import Empty as QueueEmptyException
-
-from typing import Optional, Union
+from jax.tree_util import Partial, register_pytree_node_class
+from mujoco import mjx
 
 
 @register_pytree_node_class
@@ -30,18 +30,23 @@ class JAXRenderer:
     ):
         if num_workers is None:
             # Set the number of workers to the number of threads
-            # Temporarily set the number of threads to 1 for debugging
-            # num_workers = os.cpu_count()
-            num_workers = 1
+            num_workers = os.cpu_count()
         if num_workers is None:
             # Failed to get the number of threads, set to 1
             num_workers = 1
 
         self._num_workers = num_workers
         self._workers = []
-        self._queue = Queue()
+
+        self._mp_context = multiprocessing.get_context("spawn")
+        self._sync_manager = self._mp_context.Manager()
+        self._share_manager = multiprocessing.managers.SharedMemoryManager()
+        self._share_manager.start()
+
+        self._queue = self._sync_manager.Queue()
 
         self._model = model
+
         self._width = width
         self._height = height
         self._max_geom = max_geom
@@ -50,32 +55,78 @@ class JAXRenderer:
 
     def _init_workers(self):
         for _ in range(self._num_workers):
-            self._workers.append(JAXRenderWorker(renderer, self._queue))
+            worker = JAXRenderWorker(self)
+            self._workers.append(worker)
+
+    @property
+    def _bytes_per_frame(self) -> int:
+        return self._width * self._height * 3 * np.dtype(np.uint8).itemsize
 
     def _host_render(
-        self,
-        data: mjx.Data,
+        renderer,
+        qpos: jax.Array,
         camera: Union[int, str] = -1,
     ):
-        host_data = mjx.get_data(self._model, data)
-        is_batch = isinstance(host_data, list)
-        if is_batch:
-            tasks = []
-            host_datas = host_data
-            for host_data in host_datas:
-                task = JAXRenderWorkerTask(host_data, camera)
-                self._queue.put(task)
-                tasks.append(task)
-            imgs = []
-            for task in tasks:
-                imgs.append(task.await_result())
-            return np.stack(imgs, axis=0)
+        self = renderer
 
-        else:
-            task = JAXRenderWorkerTask(host_data, camera)
-            self._queue.put(task)
-            img = task.await_result()
-            return img
+        leading_dims = qpos.shape[:-1]
+        qpos = qpos.reshape(-1, qpos.shape[-1])
+
+        # Create a shared memory object to hold the qpos
+        qpos_mem = self._share_manager.SharedMemory(
+            size=qpos.nbytes,
+        )
+        qpos_arr = np.frombuffer(qpos_mem.buf, dtype=np.float32).reshape(
+            -1, qpos.shape[-1]
+        )
+        qpos_arr[:] = qpos
+
+        frame_count = int(np.prod(leading_dims))
+        n_bytes = self._bytes_per_frame * frame_count
+        result_mem = self._share_manager.SharedMemory(size=n_bytes)
+
+        frames_per_worker = max(frame_count // self._num_workers, 1)
+
+        start_idx = 0
+        tasks = []
+        while start_idx < frame_count:
+            task = JAXRenderWorkerTask(
+                self,
+                qpos_mem,
+                result_mem,
+                start_idx,
+                frames_per_worker,
+                qpos.shape[-1],
+                camera,
+            )
+
+            tasks.append(task)
+
+            pickled_task = pickle.dumps(task)
+            self._queue.put(pickled_task)
+
+            start_idx += frames_per_worker
+
+        for task in tasks:
+            task.await_result()
+
+        result = (
+            np.frombuffer(
+                result_mem.buf,
+                dtype=np.uint8,
+            )
+            .reshape(*leading_dims, self._width, self._height, 3)
+            .copy()
+        )
+
+        del qpos_arr
+
+        qpos_mem.close()
+        qpos_mem.unlink()
+        result_mem.close()
+        result_mem.unlink()
+
+        return result
 
     @Partial(jax.jit, static_argnames=("camera",))
     def render(
@@ -85,29 +136,28 @@ class JAXRenderer:
     ):
         # Define a callback function to bind camera to the function
         # This avoids it being interpreted as a JAX type in case it is a string
-        def camera_bound_render_callback(data):
-            return self._host_render(data, camera)
+        def camera_bound_render_callback(qpos):
+            return self._host_render(qpos, camera)
 
         img: jax.Array = jax.pure_callback(  # type: ignore
             callback=camera_bound_render_callback,
+            qpos=data.qpos,
             result_shape_dtypes=jnp.zeros(
-                [3, self._width, self._height],
+                [*data.qpos.shape[:-1], self._width, self._height, 3],
+                dtype=jnp.uint8,
             ),
-            data=data,
+            vectorized=True,
         )
 
         return img
-
-    def close(self):
-        for worker in self._workers:
-            worker.close()
-
-        self._queue.join()
 
     def tree_flatten(self):
         return (), {
             "num_workers": self._num_workers,
             "workers": self._workers,
+            "mp_context": self._mp_context,
+            "sync_manager": self._sync_manager,
+            "share_manager": self._share_manager,
             "queue": self._queue,
             "model": self._model,
             "width": self._width,
@@ -122,6 +172,9 @@ class JAXRenderer:
 
         renderer._num_workers = aux_data["num_workers"]
         renderer._workers = aux_data["workers"]
+        renderer._mp_context = aux_data["mp_context"]
+        renderer._sync_manager = aux_data["sync_manager"]
+        renderer._share_manager = aux_data["share_manager"]
         renderer._queue = aux_data["queue"]
         renderer._model = aux_data["model"]
         renderer._width = aux_data["width"]
@@ -130,65 +183,115 @@ class JAXRenderer:
 
         return renderer
 
+    def close(self):
+
+        for worker in self._workers:
+            worker.close()
+
+        self._sync_manager.shutdown()
+        self._share_manager.shutdown()
+
 
 class JAXRenderWorkerTask:
     def __init__(
         self,
-        data,
+        jax_renderer: JAXRenderer,
+        qpos_mem,
+        result_mem,
+        start_idx,
+        frame_count,
+        qpos_trailing_dim,
         camera: Union[int, str] = -1,
     ):
-        self._result_img: Optional[np.ndarray] = None
-        self.fulfill_event = Event()
-        self.data = data
+        self.fulfill_event = jax_renderer._sync_manager.Event()
+        self.qpos_mem = qpos_mem
+        self.result_mem = result_mem
+        self.start_idx = start_idx
+        self.frame_count = frame_count
+        self.qpos_trailing_dim = qpos_trailing_dim
+        self.result_trailing_dim = (jax_renderer._width, jax_renderer._height, 3)
         self.camera = camera
+
+    @property
+    def result_img(self):
+        result_arr = np.frombuffer(
+            self.result_mem.buf,
+            dtype=np.uint8,
+        ).reshape(-1, *self.result_trailing_dim)
+        return result_arr[self.start_idx : self.start_idx + self.frame_count]
+
+    @property
+    def qpos(self):
+        qpos_arr = np.frombuffer(self.qpos_mem.buf, dtype=np.float32).reshape(
+            -1, self.qpos_trailing_dim
+        )
+        return qpos_arr[self.start_idx : self.start_idx + self.frame_count]
 
     def await_result(self):
         self.fulfill_event.wait()
-        return self._result_img
 
-    def fulfill(self, img: np.ndarray):
-        self._result_img = img
+    def fulfill(self, img: Optional[np.ndarray] = None):
+        if img is not None:
+            self.result_img[:] = img
         self.fulfill_event.set()
+
+    def close(self):
+        self.qpos_mem.close()
+        self.result_mem.close()
 
 
 class JAXRenderWorker:
-    def __init__(self, queue: Queue, model, width: int, height: int, max_geom: int):
-        self._renderer = renderer
-
-        self._running = True
+    def __init__(self, jax_renderer: JAXRenderer):
+        self._stop_event = jax_renderer._sync_manager.Event()
         # Launch the worker process
-        self._process = Process(
-            target=self._render_loop, args=(queue, model, width, height, max_geom)
+        self._process = jax_renderer._mp_context.Process(
+            target=self._render_loop,
+            args=(
+                jax_renderer._queue,
+                self._stop_event,
+                jax_renderer._model,
+                jax_renderer._width,
+                jax_renderer._height,
+                jax_renderer._max_geom,
+            ),
         )
         self._process.start()
 
     @staticmethod
-    def _render_loop(queue, model, width, height, max_geom):
+    def _render_loop(queue, stop_event, model, width, height, max_geom):
+        os.environ["MUJOCO_GL"] = "EGL"
+        os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+        os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
         # Create a renderer on the host
         renderer = mujoco.Renderer(model, width, height, max_geom)
+        data = mujoco.MjData(model)
 
         # Define a function to call the renderer
-        def render(self, task: JAXRenderWorkerTask):
-            host_data = mjx.get_data(self._renderer.model, task.data)
-            renderer.update_scene(host_data, task.camera)
-            img = renderer.render()
+        def render(task: JAXRenderWorkerTask):
+            for qpos, result_img in zip(task.qpos, task.result_img):
+                data.qpos[:] = qpos
+                mujoco.mj_forward(model, data)
+                renderer.update_scene(data, task.camera)
+                renderer.render(out=result_img)
 
-            return img
-
-        # Poll the queue for render tasks and also make sure we are still running
-        while self._running:
+        def loop_body():
             try:
-                task = queue.get(timeout=1)
-                img = render(task)
-                task.fulfill(img)
+                pickled_task = queue.get(timeout=1)
+                task = pickle.loads(pickled_task)
+                render(task)
+                task.fulfill()
+                task.close()
             except QueueEmptyException:
                 # No task, check if we should stop then continue
                 pass
+
+        # Poll the queue for render tasks and also make sure we are still running
+        while not stop_event.is_set():
+            loop_body()
 
         # Close the renderer
         renderer.close()
 
     def close(self):
-        self._running = False
+        self._stop_event.set()
         self._process.join()
-        self._renderer.close()
