@@ -59,8 +59,8 @@ class StateEncoder(nn.Module):
                     # 1024,
                     512,
                     512,
-                    256,
-                    256,
+                    # 256,
+                    # 256,
                     self.latent_state_dim,
                 ]
             )
@@ -95,8 +95,8 @@ class StateDecoder(nn.Module):
                     # 1024,
                     512,
                     512,
-                    256,
-                    256,
+                    # 256,
+                    # 256,
                     self.state_dim,
                 ]
             )

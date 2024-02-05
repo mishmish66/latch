@@ -101,8 +101,8 @@ class SigmoidGatedLoss(WeightedLoss):
         """
         sg_gate_in = jax.lax.stop_gradient(gate_in)
 
-        gate_value: float = (
-            1 + jnp.exp(self.sharpness * (sg_gate_in - self.center)).item()
+        gate_value: jax.Array = (
+            1 + jnp.exp(self.sharpness * (sg_gate_in - self.center))
         ) ** -1
 
         super_loss, infos = super().__call__(

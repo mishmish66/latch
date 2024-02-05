@@ -1,14 +1,13 @@
-from .optimizer_policy import OptimizerPolicy
-from latch.models import make_mask
-from latch import LatchState
-
 import jax
+import jax_dataclasses as jdc
 from jax import numpy as jnp
 from jax.tree_util import Partial
-
-import jax_dataclasses as jdc
-
 from overrides import override
+
+from latch import LatchState
+from latch.models import make_mask
+
+from .optimizer_policy import OptimizerPolicy
 
 
 @jdc.pytree_dataclass(kw_only=True)

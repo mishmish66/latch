@@ -30,7 +30,7 @@ class Finger(Env):
 
     _host_model: jdc.Static[mujoco.MjModel]  # type: ignore
     _model: mjx.Model
-    _renderer: jdc.Static[JAXRenderer]
+    _renderer: JAXRenderer
 
     @classmethod
     def init(

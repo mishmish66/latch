@@ -40,7 +40,7 @@ class JAXRenderer:
 
         self._mp_context = multiprocessing.get_context("spawn")
         self._sync_manager = self._mp_context.Manager()
-        self._share_manager = multiprocessing.managers.SharedMemoryManager()
+        self._share_manager = multiprocessing.managers.SharedMemoryManager()  # type: ignore
         self._share_manager.start()
 
         self._queue = self._sync_manager.Queue()
@@ -264,13 +264,13 @@ class JAXRenderWorker:
         os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
         # Create a renderer on the host
         renderer = mujoco.Renderer(model, width, height, max_geom)
-        data = mujoco.MjData(model)
+        data = mujoco.MjData(model)  # type: ignore
 
         # Define a function to call the renderer
         def render(task: JAXRenderWorkerTask):
             for qpos, result_img in zip(task.qpos, task.result_img):
                 data.qpos[:] = qpos
-                mujoco.mj_forward(model, data)
+                mujoco.mj_forward(model, data)  # type: ignore
                 renderer.update_scene(data, task.camera)
                 renderer.render(out=result_img)
 

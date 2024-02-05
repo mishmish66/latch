@@ -33,7 +33,7 @@ def train_epoch(states, actions, train_state: LatchState):
     batched_actions = rearrange(actions, "(b n) t a -> b n t a", b=num_batches)
 
     # Define a function to scan over the batches
-    def scan_func(carry, batch):
+    def scan_func(carry: LatchState, batch):
         train_state = carry
         batch_states, batch_actions = batch
 
@@ -41,7 +41,7 @@ def train_epoch(states, actions, train_state: LatchState):
         rng, train_state = train_state.split_key()
 
         # Do the train step
-        next_train_state = train_state.train_step(
+        next_train_state, infos = train_state.train_step(
             rng,
             batch_states,
             batch_actions,
@@ -51,7 +51,7 @@ def train_epoch(states, actions, train_state: LatchState):
 
     # Run the scan
     init_carry = train_state
-    train_state, _ = jax.lax.scan(
+    train_state, _ = jax.lax.scan(  # type: ignore
         scan_func, init_carry, (batched_states, batched_actions)
     )
 

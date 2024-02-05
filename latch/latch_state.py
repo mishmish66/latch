@@ -83,11 +83,11 @@ class LatchState:
         updates, new_opt_state = self.config.optimizer.update(
             grads,
             self.opt_state,
-            self.primary_net_state,  # type: ignore
+            self.primary_params,  # type: ignore
         )
 
         new_primary_params: NetParams = optax.apply_updates(
-            self.primary_net_state,  # type: ignore
+            self.primary_params,  # type: ignore
             updates,
         )
 
@@ -129,6 +129,23 @@ class LatchState:
 
         return rng, new_state
 
+    def split_state(self) -> Tuple["LatchState", "LatchState"]:
+        """Split the state into two with different keys.
+
+        Returns:
+            (TrainState, TrainState): Two versions of the state.
+        """
+
+        rng_a, rng_b = jax.random.split(self.key)
+
+        with jdc.copy_and_mutate(self) as state_a:
+            state_a.key = rng_a
+
+        with jdc.copy_and_mutate(self) as state_b:
+            state_b.key = rng_b
+
+        return state_a, state_b
+
     def is_done(self):
         return self.rollout >= self.config.rollouts
 
@@ -164,13 +181,12 @@ class LatchState:
             return loss, infos
 
         loss_grad, loss_infos = jax.grad(loss_for_grad, has_aux=True)(
-            train_state.primary_net_state  # type: ignore
+            self.primary_params
         )
 
         infos = Infos()
         infos = infos.add_info("losses", loss_infos)
-
-        # TODO: Log some gradient info potentially
+        infos.dump_to_wandb(self.step)
 
         next_train_state = self.apply_gradients(loss_grad)
 
