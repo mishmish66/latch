@@ -1,0 +1,62 @@
+state_reconstruction_loss_config:
+  weight: 25.0
+action_reconstruction_loss_config:
+  weight: 0.25
+forward_loss_config:
+  weight: 1.0
+state_condensation_loss_config:
+  weight: 1.0
+action_condensation_loss_config:
+  weight: 1.0
+smoothness_loss_config:
+  weight: 1.0
+state_dispersion_loss_config:
+  weight: 1.0
+  num_samples: 16
+action_dispersion_loss_config:
+  weight: 1.0
+  num_samples: 16
+
+loss_edges:
+  - source: "state_reconstruction_loss"
+    target: "forward_loss"
+    gate:
+      type: "spike"
+      sharpness: 1e5
+      center: 0.0
+  - source: "action_reconstruction_loss"
+    target: "forward_loss"
+    gate:
+      type: "spike"
+      sharpness: 1e5
+      center: 0.0
+  - source: "forward_loss"
+    target: "state_condensation_loss"
+    gate:
+      type: "spike"
+      sharpness: 1e5
+      center: 0.0
+  - source: "forward_loss"
+    target: "action_condensation_loss"
+    gate:
+      type: "spike"
+      sharpness: 1e5
+      center: 0.0
+  - source: "forward_loss"
+    target: "smoothness_loss"
+    gate:
+      type: "spike"
+      sharpness: 1e5
+      center: 0.0
+  - source: "forward_loss"
+    target: "state_dispersion_loss"
+    gate:
+      type: "spike"
+      sharpness: 1e5
+      center: 0.0
+  - source: "forward_loss"
+    target: "action_dispersion_loss"
+    gate:
+      type: "spike"
+      sharpness: 1e5
+      center: 0.0

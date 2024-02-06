@@ -1,23 +1,20 @@
-from .loss import SigmoidGatedLoss
-
-from latch.models import ModelState
-
-from latch import Infos
-
-import jax_dataclasses as jdc
+from typing import Tuple
 
 import jax
+import jax_dataclasses as jdc
+from einops import rearrange
 from jax import numpy as jnp
-
 from overrides import override
 
-from einops import rearrange
+from latch import Infos
+from latch.models import ModelState
 
-from typing import Tuple
+from .loss_func import WeightedLossFunc
 
 
 @jdc.pytree_dataclass(kw_only=True)
-class StateDispersionLoss(SigmoidGatedLoss):
+class StateDispersionLoss(WeightedLossFunc):
+    # class StateDispersionLoss(SpikeGatedLoss):
     num_samples: jdc.Static[int]
 
     @override
@@ -60,13 +57,14 @@ class StateDispersionLoss(SigmoidGatedLoss):
         loss = -jnp.mean(jnp.log(pairwise_latent_state_diffs_norm + 1.0))
 
         infos = Infos()
-        infos = infos.add_info("loss", loss)
+        infos = infos.add_info("raw", loss)
 
         return loss, infos
 
 
 @jdc.pytree_dataclass(kw_only=True)
-class ActionDispersionLoss(SigmoidGatedLoss):
+class ActionDispersionLoss(WeightedLossFunc):
+    # class ActionDispersionLoss(SigmoidGatedLoss):
     num_samples: jdc.Static[int]
 
     @override
@@ -117,6 +115,6 @@ class ActionDispersionLoss(SigmoidGatedLoss):
         loss = -jnp.mean(jnp.log(pairwise_latent_action_diffs_norm + 1.0))
 
         infos = Infos()
-        infos = infos.add_info("loss", loss)
+        infos = infos.add_info("raw", loss)
 
         return loss, infos

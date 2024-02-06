@@ -1,21 +1,18 @@
-import jax_dataclasses as jdc
+from typing import Any, List
 
 import flax
-from flax import struct
-from flax import linen as nn
-
 import jax
+import jax_dataclasses as jdc
+from einops import einsum, rearrange
+from flax import linen as nn
+from flax import struct
 from jax import numpy as jnp
 from jax.tree_util import Partial
-
-from einops import einsum, rearrange
-
-from typing import Any
 
 
 class FreqLayer(nn.Module):
     out_dim: int = struct.field(pytree_node=False)
-    min_freq: float = 0.25
+    min_freq: float = 0.01
     max_freq: float = 512.0
 
     def setup(self):
@@ -39,7 +36,7 @@ class FreqLayer(nn.Module):
         cosines = jnp.cos(phases)
 
         # Give it the dims it needs
-        freq_result = rearrange([sines, cosines], "f e w -> (w f e)")
+        freq_result = rearrange([sines, cosines], "f e w -> (f w e)")
         freq_result = jnp.zeros(self.out_dim).at[: len(freq_result)].set(freq_result)
 
         return freq_result
@@ -47,20 +44,16 @@ class FreqLayer(nn.Module):
 
 class StateEncoder(nn.Module):
     latent_state_dim: int
+    layer_sizes: List[int] = struct.field(pytree_node=False)
 
     def setup(self):
-        self.freq_layer = FreqLayer(out_dim=1024)
+        self.freq_layer = FreqLayer(out_dim=self.layer_sizes[0])
 
         self.dense_layers = [
             nn.Dense(dim, name=f"FC{i}")
             for i, dim in enumerate(
                 [
-                    # 1024,
-                    # 1024,
-                    512,
-                    512,
-                    # 256,
-                    # 256,
+                    *self.layer_sizes[1:],
                     self.latent_state_dim,
                 ]
             )
@@ -83,20 +76,16 @@ class StateEncoder(nn.Module):
 
 class StateDecoder(nn.Module):
     state_dim: int = struct.field(pytree_node=False)
+    layer_sizes: List[int] = struct.field(pytree_node=False)
 
     def setup(self):
-        self.freq_layer = FreqLayer(out_dim=1024)
+        self.freq_layer = FreqLayer(out_dim=self.layer_sizes[0])
 
         self.dense_layers = [
             nn.Dense(d, name=f"FC{i}")
             for i, d in enumerate(
                 [
-                    # 1024,
-                    # 1024,
-                    512,
-                    512,
-                    # 256,
-                    # 256,
+                    *self.layer_sizes[1:],
                     self.state_dim,
                 ]
             )
@@ -118,20 +107,16 @@ class StateDecoder(nn.Module):
 
 class ActionEncoder(nn.Module):
     latent_action_dim: int = struct.field(pytree_node=False)
+    layer_sizes: List[int] = struct.field(pytree_node=False)
 
     def setup(self):
-        self.freq_layer = FreqLayer(out_dim=1024)
+        self.freq_layer = FreqLayer(out_dim=self.layer_sizes[0])
 
         self.dense_layers = [
             nn.Dense(dim, name=f"FC{i}")
             for i, dim in enumerate(
                 [
-                    1024,
-                    1024,
-                    # 512,
-                    # 512,
-                    # 256,
-                    # 256,
+                    *self.layer_sizes[1:],
                     self.latent_action_dim,
                 ]
             )
@@ -156,20 +141,16 @@ class ActionEncoder(nn.Module):
 
 class ActionDecoder(nn.Module):
     act_dim: int = struct.field(pytree_node=False)
+    layer_sizes: List[int] = struct.field(pytree_node=False)
 
     def setup(self):
-        self.freq_layer = FreqLayer(out_dim=1024)
+        self.freq_layer = FreqLayer(out_dim=self.layer_sizes[0])
 
         self.dense_layers = [
             nn.Dense(d, name=f"FC{i}")
             for i, d in enumerate(
                 [
-                    1024,
-                    1024,
-                    # 512,
-                    # 512,
-                    # 256,
-                    # 256,
+                    *self.layer_sizes[1:],
                     self.act_dim,
                 ]
             )

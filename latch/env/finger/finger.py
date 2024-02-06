@@ -1,27 +1,20 @@
-from latch.rendering import JAXRenderer
-
-from ..env import Env
-
-import jax_dataclasses as jdc
-
-import mujoco
-from mujoco import mjx
+from pathlib import Path
+from typing import Any, Optional
 
 import jax
+import jax_dataclasses as jdc
+import mujoco
+import numpy as np
+import wandb
 from jax import numpy as jnp
 from jax.experimental import io_callback
 from jax.experimental.host_callback import id_tap
 from jax.tree_util import Partial, register_pytree_node_class
-
+from mjx_render import MJXRenderer
+from mujoco import mjx
 from overrides import override
 
-import wandb
-
-import numpy as np
-
-from pathlib import Path
-
-from typing import Optional, Any
+from ..env import Env
 
 
 @jdc.pytree_dataclass(kw_only=True)
@@ -30,7 +23,7 @@ class Finger(Env):
 
     _host_model: jdc.Static[mujoco.MjModel]  # type: ignore
     _model: mjx.Model
-    _renderer: JAXRenderer
+    _renderer: MJXRenderer
 
     @classmethod
     def init(
@@ -62,7 +55,7 @@ class Finger(Env):
         host_model.opt.timestep = substep_dt
         host_model = host_model
         model = mjx.put_model(host_model)
-        renderer = JAXRenderer(host_model, 512, 512)
+        renderer = MJXRenderer(host_model, 512, 512)
 
         return cls(
             action_bounds=action_bounds,

@@ -1,23 +1,20 @@
-from .loss import SigmoidGatedLoss
-
-from latch.models import ModelState
-
-from latch import Infos
-
-import jax_dataclasses as jdc
+from typing import Tuple
 
 import jax
+import jax_dataclasses as jdc
+from einops import rearrange
 from jax import numpy as jnp
-
 from overrides import override
 
-from einops import rearrange
+from latch import Infos
+from latch.models import ModelState
 
-from typing import Tuple
+from .loss_func import WeightedLossFunc
 
 
 @jdc.pytree_dataclass(kw_only=True)
-class StateCondensationLoss(SigmoidGatedLoss):
+class StateCondensationLoss(WeightedLossFunc):
+    # class StateCondensationLoss(SpikeGatedLoss):
     @override
     def compute(
         self,
@@ -48,20 +45,20 @@ class StateCondensationLoss(SigmoidGatedLoss):
             0.0, state_radii - models.latent_state_radius
         )
 
-        state_radius_violation_square = jnp.square(state_radius_violations)
-        state_radius_violation_log = jnp.log(state_radius_violations + 1e-6)
+        state_radius_violation_log = jnp.log(state_radius_violations + 1.0)
 
-        losses = state_radius_violation_square + state_radius_violation_log
+        losses = state_radius_violation_log
         loss = jnp.mean(losses)
 
         infos = Infos()
-        infos = infos.add_info("loss", loss)
+        infos = infos.add_info("raw", loss)
 
         return loss, infos
 
 
 @jdc.pytree_dataclass(kw_only=True)
-class ActionCondensationLoss(SigmoidGatedLoss):
+class ActionCondensationLoss(WeightedLossFunc):
+    # class ActionCondensationLoss(SpikeGatedLoss):
     @override
     def compute(
         self,
@@ -104,13 +101,12 @@ class ActionCondensationLoss(SigmoidGatedLoss):
             0.0, action_radii - models.latent_action_radius
         )
 
-        action_radius_violation_square = jnp.square(action_radius_violations)
-        action_radius_violation_log = jnp.log(action_radius_violations + 1e-6)
+        action_radius_violation_log = jnp.log(action_radius_violations + 1.0)
 
-        losses = action_radius_violation_square + action_radius_violation_log
+        losses = action_radius_violation_log
         loss = jnp.mean(losses)
 
         infos = Infos()
-        infos = infos.add_info("loss", loss)
+        infos = infos.add_info("raw", loss)
 
         return loss, infos

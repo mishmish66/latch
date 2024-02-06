@@ -1,23 +1,20 @@
-from .loss import SigmoidGatedLoss
-
-from latch.models import ModelState, make_mask
-
-from latch import Infos
-
-import jax_dataclasses as jdc
+from typing import Tuple
 
 import jax
+import jax_dataclasses as jdc
+from einops import einsum
 from jax import numpy as jnp
-
 from overrides import override
 
-from einops import einsum
+from latch import Infos
+from latch.models import ModelState, make_mask
 
-from typing import Tuple
+from .loss_func import WeightedLossFunc
 
 
 @jdc.pytree_dataclass(kw_only=True)
-class ForwardLoss(SigmoidGatedLoss):
+class ForwardLoss(WeightedLossFunc):
+    # class ForwardLoss(SpikeGatedLoss):
     """Computes the forward loss for a batch of trajectories."""
 
     @override
@@ -80,7 +77,7 @@ class ForwardLoss(SigmoidGatedLoss):
             ln_errs = jnp.log(errs + 1e-8)
             squared_errs = jnp.square(errs)
 
-            losses = ln_errs + squared_errs
+            losses = squared_errs  # + ln_errs
 
             future_losses = einsum(losses, future_mask, "t ..., t -> t ...")
             mean_future_loss = jnp.mean(future_losses)
@@ -103,6 +100,6 @@ class ForwardLoss(SigmoidGatedLoss):
         loss = jnp.mean(losses)
 
         infos = Infos()
-        infos = infos.add_info("loss", loss)
+        infos = infos.add_info("raw", loss)
 
         return loss, infos

@@ -1,58 +1,43 @@
-# Import all the individual losses that make up the LATCH loss
-from .reconstruction import StateReconstructionLoss, ActionReconstructionLoss
-from .forward import ForwardLoss
-from .condensation import StateCondensationLoss, ActionCondensationLoss
-from .smoothness import SmoothnessLoss
-from .dispersion import StateDispersionLoss, ActionDispersionLoss
+from typing import Any, Dict, Tuple
 
-# Import the base loss class
-from .loss import Loss
+import jax
+import jax_dataclasses as jdc
+from loss_gate_graph import LossGateGraph
 
 from latch.infos import Infos
 from latch.models import ModelState
 
-import jax_dataclasses as jdc
-
-import jax
-
-from overrides import override
-
-from typing import Tuple
+from .condensation import ActionCondensationLoss, StateCondensationLoss
+from .dispersion import ActionDispersionLoss, StateDispersionLoss
+from .forward import ForwardLoss
+from .reconstruction import ActionReconstructionLoss, StateReconstructionLoss
+from .smoothness import SmoothnessLoss
 
 
 @jdc.pytree_dataclass
-class LatchLoss(Loss):
-    state_reconstruction_loss: StateReconstructionLoss = StateReconstructionLoss()
-    action_reconstruction_loss: ActionReconstructionLoss = ActionReconstructionLoss()
+class LatchLoss:
+    loss_gate_graph: jdc.Static[LossGateGraph]
 
-    forward_loss: ForwardLoss = ForwardLoss(weight=1.0, sharpness=1.0, center=-3.0)
+    state_reconstruction_loss: StateReconstructionLoss
+    action_reconstruction_loss: ActionReconstructionLoss
 
-    state_condensation_loss: StateCondensationLoss = StateCondensationLoss(
-        weight=1.0, sharpness=1.0, center=-5.0
-    )
-    action_condensation_loss: ActionCondensationLoss = ActionCondensationLoss(
-        weight=1.0, sharpness=1.0, center=-5.0
-    )
+    forward_loss: ForwardLoss
 
-    smoothness_loss: SmoothnessLoss = SmoothnessLoss(
-        weight=1.0, sharpness=1.0, center=-5.0
-    )
+    state_condensation_loss: StateCondensationLoss
+    action_condensation_loss: ActionCondensationLoss
 
-    state_dispersion_loss: StateDispersionLoss = StateDispersionLoss(
-        weight=1.0, sharpness=1.0, center=-5.0, num_samples=16
-    )
-    action_dispersion_loss: ActionDispersionLoss = ActionDispersionLoss(
-        weight=1.0, sharpness=1.0, center=-5.0, num_samples=16
-    )
+    smoothness_loss: SmoothnessLoss
 
-    @override
+    state_dispersion_loss: StateDispersionLoss
+    action_dispersion_loss: ActionDispersionLoss
+
     def compute(
         self,
         key: jax.Array,
         states: jax.Array,
         actions: jax.Array,
         models: ModelState,
-    ) -> Tuple[jax.Array, Infos]:
+    ) -> Tuple[Dict[Any, jax.Array], Infos]:
         """Compute the loss for a batch of trajectories.
 
         Args:
@@ -65,7 +50,7 @@ class LatchLoss(Loss):
             (Losses, Infos): A tuple containing the loss object and associated infos object.
         """
 
-        infos = Infos()
+        loss_vals = {}
 
         ### Reconstruction Loss ###
 
@@ -78,7 +63,7 @@ class LatchLoss(Loss):
         (
             state_reconstruction_loss,
             state_reconstruction_infos,
-        ) = self.state_reconstruction_loss.compute(
+        ) = self.state_reconstruction_loss(
             key=rng,
             **loss_args,
         )
@@ -87,12 +72,114 @@ class LatchLoss(Loss):
         (
             action_reconstruction_loss,
             action_reconstruction_infos,
-        ) = self.action_reconstruction_loss.compute(
+        ) = self.action_reconstruction_loss(
             key=rng,
             **loss_args,
         )
 
-        reconstruction_loss = state_reconstruction_loss + action_reconstruction_loss
+        loss_vals[self.state_reconstruction_loss.__class__] = state_reconstruction_loss
+        loss_vals[self.action_reconstruction_loss.__class__] = (
+            action_reconstruction_loss
+        )
+
+        ### Forward Loss ###
+
+        rng, key = jax.random.split(key)
+        (
+            forward_loss,
+            forward_infos,
+        ) = self.forward_loss(
+            key=rng,
+            **loss_args,
+        )
+
+        loss_vals[self.forward_loss.__class__] = forward_loss
+
+        ### Condensation Loss ###
+
+        rng, key = jax.random.split(key)
+        (
+            state_condensation_loss,
+            state_condensation_infos,
+        ) = self.state_condensation_loss(
+            key=rng,
+            **loss_args,
+        )
+
+        rng, key = jax.random.split(key)
+        (
+            action_condensation_loss,
+            action_condensation_infos,
+        ) = self.action_condensation_loss(
+            key=rng,
+            **loss_args,
+        )
+
+        loss_vals[self.state_condensation_loss.__class__] = state_condensation_loss
+        loss_vals[self.action_condensation_loss.__class__] = action_condensation_loss
+
+        ### Smoothness Loss ###
+
+        rng, key = jax.random.split(key)
+        (
+            smoothness_loss,
+            smoothness_infos,
+        ) = self.smoothness_loss(
+            key=rng,
+            **loss_args,
+        )
+
+        loss_vals[self.smoothness_loss.__class__] = smoothness_loss
+
+        ### Dispersion Loss ###
+
+        rng, key = jax.random.split(key)
+        (
+            state_dispersion_loss,
+            state_dispersion_infos,
+        ) = self.state_dispersion_loss(
+            key=rng,
+            **loss_args,
+        )
+
+        rng, key = jax.random.split(key)
+        (
+            action_dispersion_loss,
+            action_dispersion_infos,
+        ) = self.action_dispersion_loss(
+            key=rng,
+            **loss_args,
+        )
+
+        loss_vals[self.state_dispersion_loss.__class__] = state_dispersion_loss
+        loss_vals[self.action_dispersion_loss.__class__] = action_dispersion_loss
+
+        ### Loss Gating ###
+
+        infos = Infos()
+        gate_vals = self.loss_gate_graph.compute_gates(loss_vals)
+
+        ### Gated Reconstruction Loss ###
+
+        state_reconstruction_gate_val = gate_vals[
+            self.state_reconstruction_loss.__class__
+        ]
+        gated_state_reconstruction_loss = (
+            state_reconstruction_loss * state_reconstruction_gate_val
+        )
+        action_reconstruction_gate_val = gate_vals[
+            self.action_reconstruction_loss.__class__
+        ]
+        gated_action_reconstruction_loss = (
+            action_reconstruction_loss * action_reconstruction_gate_val
+        )
+
+        state_reconstruction_infos = state_reconstruction_infos.add_info(
+            "gate", state_reconstruction_gate_val
+        ).add_info("final", gated_state_reconstruction_loss)
+        action_reconstruction_infos = action_reconstruction_infos.add_info(
+            "gate", action_reconstruction_gate_val
+        ).add_info("final", gated_action_reconstruction_loss)
 
         reconstruction_infos = Infos()
         reconstruction_infos = reconstruction_infos.add_info(
@@ -104,110 +191,102 @@ class LatchLoss(Loss):
 
         infos = infos.add_info("reconstruction", reconstruction_infos)
 
-        ### Forward Loss ###
-
-        forward_gate_in = reconstruction_loss
-        rng, key = jax.random.split(key)
-        (
-            forward_loss,
-            forward_infos,
-        ) = self.forward_loss(
-            key=rng,
-            gate_in=forward_gate_in,  # type: ignore
-            **loss_args,
+        final_reconstruction_loss = (
+            gated_action_reconstruction_loss + gated_state_reconstruction_loss
         )
 
+        ### Gated Forward Loss ###
+
+        forward_gate_val = gate_vals[self.forward_loss.__class__]
+        gated_forward_loss = forward_loss * forward_gate_val
+
+        forward_infos = Infos()
+        forward_infos = forward_infos.add_info("gate", forward_gate_val).add_info(
+            "final", gated_forward_loss
+        )
         infos = infos.add_info("forward", forward_infos)
 
-        ### Condensation Loss ###
+        final_forward_loss = gated_forward_loss
 
-        condensation_gate_in = forward_loss + reconstruction_loss
+        ### Gated Condensation Loss ###
 
-        rng, key = jax.random.split(key)
-        (
-            state_condensation_loss,
-            state_condensation_info,
-        ) = self.state_condensation_loss(
-            key=rng,
-            gate_in=condensation_gate_in,  # type: ignore
-            **loss_args,
+        state_condensation_gate_val = gate_vals[self.state_condensation_loss.__class__]
+        gated_state_condensation_loss = (
+            state_condensation_loss * state_condensation_gate_val
+        )
+        action_condensation_gate_val = gate_vals[
+            self.action_condensation_loss.__class__
+        ]
+        gated_action_condensation_loss = (
+            action_condensation_loss * action_condensation_gate_val
         )
 
-        rng, key = jax.random.split(key)
-        (
-            action_condensation_loss,
-            action_condensation_info,
-        ) = self.action_condensation_loss(
-            key=rng,
-            gate_in=condensation_gate_in,  # type: ignore
-            **loss_args,
-        )
-
-        condensation_loss = state_condensation_loss + action_condensation_loss
+        state_condensation_infos = state_condensation_infos.add_info(
+            "gate", state_condensation_gate_val
+        ).add_info("final", gated_state_condensation_loss)
+        action_condensation_infos = action_condensation_infos.add_info(
+            "gate", action_condensation_gate_val
+        ).add_info("final", gated_action_condensation_loss)
 
         condensation_infos = Infos()
         condensation_infos = condensation_infos.add_info(
-            "state", state_condensation_info
+            "state", state_condensation_infos
         )
         condensation_infos = condensation_infos.add_info(
-            "action", action_condensation_info
+            "action", action_condensation_infos
         )
-
         infos = infos.add_info("condensation", condensation_infos)
 
-        ### Smoothness Loss ###
-
-        smoothness_gate_in = condensation_loss + forward_loss + reconstruction_loss
-        rng, key = jax.random.split(key)
-        (
-            smoothness_loss,
-            smoothness_info,
-        ) = self.smoothness_loss(
-            key=rng,
-            gate_in=smoothness_gate_in,  # type: ignore
-            **loss_args,
+        final_condensation_loss = (
+            gated_state_condensation_loss + gated_action_condensation_loss
         )
 
-        infos = infos.add_info("smoothness", smoothness_info)
+        ### Gated Smoothness Loss ###
 
-        ### Dispersion Loss ###
-        dispersion_gate_in = condensation_loss + forward_loss + reconstruction_loss
+        smoothness_gate_val = gate_vals[self.smoothness_loss.__class__]
+        gated_smoothness_loss = smoothness_loss * smoothness_gate_val
 
-        rng, key = jax.random.split(key)
-        (
-            state_dispersion_loss,
-            state_dispersion_info,
-        ) = self.state_dispersion_loss(
-            key=rng,
-            gate_in=dispersion_gate_in,  # type: ignore
-            **loss_args,
+        smoothness_infos = smoothness_infos.add_info(
+            "gate", smoothness_gate_val
+        ).add_info("final", gated_smoothness_loss)
+        infos = infos.add_info("smoothness", smoothness_infos)
+
+        final_smoothness_loss = gated_smoothness_loss
+
+        ### Gated Dispersion Loss ###
+
+        state_dispersion_gate_val = gate_vals[self.state_dispersion_loss.__class__]
+        gated_state_dispersion_loss = state_dispersion_loss * state_dispersion_gate_val
+        action_dispersion_gate_val = gate_vals[self.action_dispersion_loss.__class__]
+        gated_action_dispersion_loss = (
+            action_dispersion_loss * action_dispersion_gate_val
         )
 
-        rng, key = jax.random.split(key)
-        (
-            action_dispersion_loss,
-            action_dispersion_info,
-        ) = self.action_dispersion_loss(
-            key=rng,
-            gate_in=dispersion_gate_in,  # type: ignore
-            **loss_args,
-        )
-
-        dispersion_loss = state_dispersion_loss + action_dispersion_loss
+        state_dispersion_infos = state_dispersion_infos.add_info(
+            "gate", state_dispersion_gate_val
+        ).add_info("final", gated_state_dispersion_loss)
+        action_dispersion_infos = action_dispersion_infos.add_info(
+            "gate", action_dispersion_gate_val
+        ).add_info("final", gated_action_dispersion_loss)
 
         dispersion_infos = Infos()
-        dispersion_infos = dispersion_infos.add_info("state", state_dispersion_info)
-        dispersion_infos = dispersion_infos.add_info("action", action_dispersion_info)
-
+        dispersion_infos = dispersion_infos.add_info("state", state_dispersion_infos)
+        dispersion_infos = dispersion_infos.add_info("action", action_dispersion_infos)
         infos = infos.add_info("dispersion", dispersion_infos)
+
+        final_dispersion_loss = (
+            gated_state_dispersion_loss + gated_action_dispersion_loss
+        )
 
         ### Total Loss ###
         total_loss = (
-            reconstruction_loss
-            + forward_loss
-            + condensation_loss
-            + smoothness_loss
-            + dispersion_loss
+            final_reconstruction_loss
+            + final_forward_loss
+            + final_condensation_loss
+            + final_smoothness_loss
+            + final_dispersion_loss
         )
+
+        infos = infos.add_info("total", total_loss)
 
         return total_loss, infos

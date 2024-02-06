@@ -1,4 +1,4 @@
-from .loss import Loss
+from .loss_func import LossFunc
 from .latch_loss import LatchLoss
 from .reconstruction import StateReconstructionLoss, ActionReconstructionLoss
 from .forward import ForwardLoss

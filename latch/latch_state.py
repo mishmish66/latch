@@ -171,7 +171,7 @@ class LatchState:
             """A small function that computes the loss only as a function of the net state for the gradient transformation."""
 
             models = ModelState(net_params=net_params, nets=self.config.nets)
-            loss, infos = self.config.latch_loss(
+            loss, infos = self.config.latch_loss.compute(
                 key=rng,
                 states=states,
                 actions=actions,

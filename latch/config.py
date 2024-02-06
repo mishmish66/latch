@@ -5,6 +5,8 @@ import hydra
 import jax
 import optax
 from hydra.core.config_store import ConfigStore
+from loss_gate_graph import Edge, LossGateGraph, SigmoidGate, SpikeGate
+from omegaconf import DictConfig, OmegaConf
 
 from latch import LatchConfig, LatchState
 from latch.env import Env
@@ -55,36 +57,24 @@ class NetConfig:
 
 
 @dataclass
-class WeightedLossConfig:
-    weight: float
-
-
-@dataclass
-class SigmoidGatedLossConfig(WeightedLossConfig):
-    sharpness: float
-    center: float
-
-
-@dataclass
-class StateDispersionLossConfig(SigmoidGatedLossConfig):
-    num_samples: int
-
-
-@dataclass
-class ActionDispersionLossConfig(SigmoidGatedLossConfig):
-    num_samples: int
+class EdgeConfig:
+    source: str
+    target: str
+    gate: DictConfig
 
 
 @dataclass
 class LatchLossConfig:
-    state_reconstruction_loss_config: WeightedLossConfig
-    action_reconstruction_loss_config: WeightedLossConfig
-    forward_loss_config: SigmoidGatedLossConfig
-    state_condensation_loss_config: SigmoidGatedLossConfig
-    action_condensation_loss_config: SigmoidGatedLossConfig
-    smoothness_loss_config: SigmoidGatedLossConfig
-    state_dispersion_loss_config: StateDispersionLossConfig
-    action_dispersion_loss_config: ActionDispersionLossConfig
+    loss_edges: List[EdgeConfig]
+
+    state_reconstruction_loss_config: DictConfig
+    action_reconstruction_loss_config: DictConfig
+    forward_loss_config: DictConfig
+    state_condensation_loss_config: DictConfig
+    action_condensation_loss_config: DictConfig
+    smoothness_loss_config: DictConfig
+    state_dispersion_loss_config: DictConfig
+    action_dispersion_loss_config: DictConfig
 
 
 @dataclass
@@ -119,23 +109,68 @@ cs.store(name="train_config", node=TrainConfig)
 
 def configure_nets(net_config: NetConfig):
     return Nets(
-        state_encoder=StateEncoder(net_config.latent_state_dim),
-        action_encoder=ActionEncoder(net_config.latent_action_dim),
+        state_encoder=StateEncoder(
+            net_config.latent_state_dim, net_config.state_encoder_layers
+        ),
+        action_encoder=ActionEncoder(
+            net_config.latent_action_dim, net_config.action_encoder_layers
+        ),
         transition_model=TransitionModel(
             latent_state_dim=net_config.latent_state_dim,
             n_layers=net_config.transition_model_n_layers,
             latent_dim=net_config.transition_model_latent_dim,
             heads=net_config.transition_model_n_heads,
         ),
-        state_decoder=StateDecoder(net_config.state_dim),
-        action_decoder=ActionDecoder(net_config.action_dim),
+        state_decoder=StateDecoder(
+            net_config.state_dim, net_config.state_decoder_layers
+        ),
+        action_decoder=ActionDecoder(
+            net_config.action_dim, net_config.action_decoder_layers
+        ),
         latent_state_radius=net_config.latent_state_radius,
         latent_action_radius=net_config.latent_action_radius,
     )
 
 
+name_to_gate = {"spike": SpikeGate, "sigmoid": SigmoidGate}
+
+name_to_loss_func = {
+    "state_reconstruction_loss": StateReconstructionLoss,
+    "action_reconstruction_loss": ActionReconstructionLoss,
+    "forward_loss": ForwardLoss,
+    "state_condensation_loss": StateCondensationLoss,
+    "action_condensation_loss": ActionCondensationLoss,
+    "smoothness_loss": SmoothnessLoss,
+    "state_dispersion_loss": StateDispersionLoss,
+    "action_dispersion_loss": ActionDispersionLoss,
+}
+
+
 def configure_loss(loss_config: LatchLossConfig):
+
+    edges = []
+    for edge_config in loss_config.loss_edges:
+        source = name_to_loss_func[edge_config.source]
+        target = name_to_loss_func[edge_config.target]
+        gate_class = name_to_gate[edge_config.gate.type]
+        gate_params = {
+            param_name: param_val
+            for param_name, param_val in OmegaConf.to_container(
+                edge_config.gate
+            ).items()  # type: ignore
+            if param_name != "type"
+        }
+        gate = gate_class(**gate_params)
+        edges.append(
+            Edge(
+                source=source,
+                target=target,
+                gate=gate,
+            )
+        )
+
     return LatchLoss(
+        loss_gate_graph=LossGateGraph(edges=edges),
         state_reconstruction_loss=StateReconstructionLoss(
             weight=loss_config.state_reconstruction_loss_config.weight,
         ),
@@ -144,34 +179,22 @@ def configure_loss(loss_config: LatchLossConfig):
         ),
         forward_loss=ForwardLoss(
             weight=loss_config.forward_loss_config.weight,
-            sharpness=loss_config.forward_loss_config.sharpness,
-            center=loss_config.forward_loss_config.center,
         ),
         state_condensation_loss=StateCondensationLoss(
             weight=loss_config.state_condensation_loss_config.weight,
-            sharpness=loss_config.state_condensation_loss_config.sharpness,
-            center=loss_config.state_condensation_loss_config.center,
         ),
         action_condensation_loss=ActionCondensationLoss(
             weight=loss_config.action_condensation_loss_config.weight,
-            sharpness=loss_config.action_condensation_loss_config.sharpness,
-            center=loss_config.action_condensation_loss_config.center,
         ),
         smoothness_loss=SmoothnessLoss(
             weight=loss_config.smoothness_loss_config.weight,
-            sharpness=loss_config.smoothness_loss_config.sharpness,
-            center=loss_config.smoothness_loss_config.center,
         ),
         state_dispersion_loss=StateDispersionLoss(
             weight=loss_config.state_dispersion_loss_config.weight,
-            sharpness=loss_config.state_dispersion_loss_config.sharpness,
-            center=loss_config.state_dispersion_loss_config.center,
             num_samples=loss_config.state_dispersion_loss_config.num_samples,
         ),
         action_dispersion_loss=ActionDispersionLoss(
             weight=loss_config.action_dispersion_loss_config.weight,
-            sharpness=loss_config.action_dispersion_loss_config.sharpness,
-            center=loss_config.action_dispersion_loss_config.center,
             num_samples=loss_config.action_dispersion_loss_config.num_samples,
         ),
     )
@@ -181,6 +204,7 @@ def configure_state(train_config: TrainConfig, env: Env):
     latch_config = LatchConfig(
         optimizer=optax.chain(
             optax.zero_nans(),
+            optax.clip_by_global_norm(1.0),
             optax.adamw(learning_rate=train_config.learning_rate),
         ),
         env=env,

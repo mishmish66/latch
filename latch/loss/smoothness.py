@@ -1,22 +1,20 @@
-from .loss import SigmoidGatedLoss
-
-from latch.models import ModelState
-
-from latch import Infos
-
-import jax_dataclasses as jdc
+from typing import Tuple
 
 import jax
+import jax_dataclasses as jdc
 from jax import numpy as jnp
 from jax.tree_util import Partial
-
 from overrides import override
 
-from typing import Tuple
+from latch import Infos
+from latch.models import ModelState
+
+from .loss_func import WeightedLossFunc
 
 
 @jdc.pytree_dataclass(kw_only=True)
-class SmoothnessLoss(SigmoidGatedLoss):
+class SmoothnessLoss(WeightedLossFunc):
+    # class SmoothnessLoss(SpikeGatedLoss):
     neighborhood_sample_count: jdc.Static[int] = 8
 
     @override
@@ -122,6 +120,6 @@ class SmoothnessLoss(SigmoidGatedLoss):
 
         loss = jnp.mean(losses)
         infos = Infos()
-        infos = infos.add_info("loss", loss)
+        infos = infos.add_info("raw", loss)
 
         return loss, infos

@@ -19,16 +19,16 @@ class LatchConfig:
     env: Env
 
     nets: Nets
-    latch_loss: LatchLoss = LatchLoss()
+    latch_loss: LatchLoss
 
     # Declare anything that could possibly decide a shape as static
-    rollouts: jdc.Static[int] = 1024
-    epochs: jdc.Static[int] = 128
-    batch_size: jdc.Static[int] = 256
-    traj_per_rollout: jdc.Static[int] = 2048
-    rollout_length: jdc.Static[int] = 250
+    rollouts: jdc.Static[int]
+    epochs: jdc.Static[int]
+    batch_size: jdc.Static[int]
+    traj_per_rollout: jdc.Static[int]
+    rollout_length: jdc.Static[int]
 
-    target_net_tau: float = 0.05
+    target_net_tau: float
 
     @property
     def state_dim(self):

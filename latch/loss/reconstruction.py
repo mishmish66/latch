@@ -1,24 +1,20 @@
-from .loss import WeightedLoss
-
-from latch.models import ModelState
-
-from latch import Infos
-
-import jax_dataclasses as jdc
+from typing import Tuple
 
 import jax
-from jax.tree_util import Partial
+import jax_dataclasses as jdc
+from einops import rearrange
 from jax import numpy as jnp
-
+from jax.tree_util import Partial
 from overrides import override
 
-from einops import rearrange
+from latch import Infos
+from latch.models import ModelState
 
-from typing import Tuple
+from .loss_func import WeightedLossFunc
 
 
 @jdc.pytree_dataclass(kw_only=True)
-class StateReconstructionLoss(WeightedLoss):
+class StateReconstructionLoss(WeightedLossFunc):
     """Computes the action reconstruction loss for a set of states and actions."""
 
     @override
@@ -54,17 +50,17 @@ class StateReconstructionLoss(WeightedLoss):
         error = jnp.abs(states - reconstructed_states)
         error_square = jnp.square(error)
         error_log = jnp.log(error + 1e-8)
-        losses = error_square + error_log
+        losses = error_square  # + error_log
         loss = jnp.mean(losses)
 
         infos = Infos()
-        infos = infos.add_info("loss", loss)
+        infos = infos.add_info("raw", loss)
 
         return loss, infos
 
 
 @jdc.pytree_dataclass(kw_only=True)
-class ActionReconstructionLoss(WeightedLoss):
+class ActionReconstructionLoss(WeightedLossFunc):
     """Computes the reconstruction loss for a set of states and actions."""
 
     @override
@@ -107,10 +103,10 @@ class ActionReconstructionLoss(WeightedLoss):
         error = jnp.abs(actions - reconstructed_actions)
         error_square = jnp.square(error)
         error_log = jnp.log(error + 1e-8)
-        losses = error_square + error_log
+        losses = error_square  # + error_log
         loss = jnp.mean(losses)
 
         infos = Infos()
-        infos = infos.add_info("loss", loss)
+        infos = infos.add_info("raw", loss)
 
         return loss, infos
