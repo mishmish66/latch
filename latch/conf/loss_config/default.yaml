@@ -5,7 +5,7 @@ loss_config_list:
 
   - loss_type: "action_reconstruction"
     name: "action_reconstruction"
-    weight: 0.25
+    weight: 1.0
 
   - loss_type: "forward"
     name: "forward"
@@ -38,7 +38,7 @@ edge_config_list:
     target: "forward"
     gate_config:
       gate_type: "spike"
-      sharpness: 5e4
+      sharpness: 1e4
       center: 0.0
   - source: "action_reconstruction"
     target: "forward"
