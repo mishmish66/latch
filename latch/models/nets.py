@@ -12,8 +12,8 @@ from jax.tree_util import Partial
 
 class FreqLayer(nn.Module):
     out_dim: int = struct.field(pytree_node=False)
-    min_freq: float = 0.01
-    max_freq: float = 512.0
+    min_freq: float = 0.0625
+    max_freq: float = 1024.0
 
     def setup(self):
         pass
