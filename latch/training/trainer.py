@@ -109,7 +109,6 @@ class Trainer:
 
         eval_infos: Infos = eval_infos.condense(method="mean") # TODO: Change this back to unstack
         infos = Infos().add_info("eval_infos", eval_infos)
-        infos.dump_to_console(train_state.step)
         infos.dump_to_wandb(train_state.step)
         train_state.config.env.send_wandb_video(
             name="Actor Video",
