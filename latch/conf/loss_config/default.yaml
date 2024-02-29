@@ -38,7 +38,7 @@ edge_config_list:
     target: "forward"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e4
+      sharpness: 5e4
       center: 0.0
   - source: "action_reconstruction"
     target: "forward"
