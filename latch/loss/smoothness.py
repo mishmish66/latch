@@ -1,7 +1,9 @@
+from dataclasses import dataclass
 from typing import Tuple
 
 import jax
 import jax_dataclasses as jdc
+from hydra.core.config_store import ConfigStore
 from jax import numpy as jnp
 from jax.tree_util import Partial
 from overrides import override
@@ -10,15 +12,20 @@ from latch import Infos
 from latch.models import ModelState
 
 from .loss_func import WeightedLossFunc
+from .loss_registry import register_loss
 
 
+cs = ConfigStore.instance()
+
+
+@register_loss("smoothness")
 @jdc.pytree_dataclass(kw_only=True)
 class SmoothnessLoss(WeightedLossFunc):
     # class SmoothnessLoss(SpikeGatedLoss):
     neighborhood_sample_count: jdc.Static[int] = 8
 
     @override
-    def compute(
+    def compute_raw(
         self,
         key: jax.Array,
         states: jax.Array,
@@ -119,7 +126,13 @@ class SmoothnessLoss(WeightedLossFunc):
         )
 
         loss = jnp.mean(losses)
-        infos = Infos()
-        infos = infos.add_info("raw", loss)
 
-        return loss, infos
+        return loss, Infos()
+
+    @dataclass
+    class Config(WeightedLossFunc.Config):
+        loss_type: str = "smoothness"
+        neighborhood_sample_count: int = 8
+
+
+cs.store(group="loss", name="smoothness", node=SmoothnessLoss.Config)

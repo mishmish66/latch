@@ -111,7 +111,7 @@ class Infos:
 
         def dump_to_wandb_for_tap(tap_pack, transforms):
             self, step = tap_pack
-            Infos.host_dump_to_wandb(self, step)
+            self.host_dump_to_wandb(step)
 
         id_tap(
             dump_to_wandb_for_tap,

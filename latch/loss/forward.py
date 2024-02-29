@@ -1,8 +1,10 @@
+from dataclasses import dataclass
 from typing import Tuple
 
 import jax
 import jax_dataclasses as jdc
 from einops import einsum
+from hydra.core.config_store import ConfigStore
 from jax import numpy as jnp
 from overrides import override
 
@@ -10,15 +12,19 @@ from latch import Infos
 from latch.models import ModelState, make_mask
 
 from .loss_func import WeightedLossFunc
+from .loss_registry import register_loss
+
+cs = ConfigStore.instance()
 
 
+@register_loss("forward")
 @jdc.pytree_dataclass(kw_only=True)
 class ForwardLoss(WeightedLossFunc):
     # class ForwardLoss(SpikeGatedLoss):
     """Computes the forward loss for a batch of trajectories."""
 
     @override
-    def compute(
+    def compute_raw(
         self,
         key: jax.Array,
         states: jax.Array,
@@ -99,7 +105,11 @@ class ForwardLoss(WeightedLossFunc):
 
         loss = jnp.mean(losses)
 
-        infos = Infos()
-        infos = infos.add_info("raw", loss)
+        return loss, Infos()
 
-        return loss, infos
+    @dataclass
+    class Config(WeightedLossFunc.Config):
+        loss_type: str = "forward"
+
+
+cs.store(group="loss", name="forward", node=ForwardLoss.Config)

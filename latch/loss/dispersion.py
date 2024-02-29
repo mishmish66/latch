@@ -1,8 +1,11 @@
+import dataclasses
+from dataclasses import dataclass
 from typing import Tuple
 
 import jax
 import jax_dataclasses as jdc
 from einops import rearrange
+from hydra.core.config_store import ConfigStore
 from jax import numpy as jnp
 from overrides import override
 
@@ -10,15 +13,19 @@ from latch import Infos
 from latch.models import ModelState
 
 from .loss_func import WeightedLossFunc
+from .loss_registry import register_loss
+
+cs = ConfigStore.instance()
 
 
+@register_loss("state_dispersion")
 @jdc.pytree_dataclass(kw_only=True)
 class StateDispersionLoss(WeightedLossFunc):
     # class StateDispersionLoss(SpikeGatedLoss):
     num_samples: jdc.Static[int]
 
     @override
-    def compute(
+    def compute_raw(
         self,
         key: jax.Array,
         states: jax.Array,
@@ -61,14 +68,23 @@ class StateDispersionLoss(WeightedLossFunc):
 
         return loss, infos
 
+    @dataclass
+    class Config(WeightedLossFunc.Config):
+        loss_type: str = "state_dispersion"
+        num_samples: int = 16
 
+
+cs.store(group="loss", name="state_dispersion", node=StateDispersionLoss.Config)
+
+
+@register_loss("action_dispersion")
 @jdc.pytree_dataclass(kw_only=True)
 class ActionDispersionLoss(WeightedLossFunc):
     # class ActionDispersionLoss(SigmoidGatedLoss):
     num_samples: jdc.Static[int]
 
     @override
-    def compute(
+    def compute_raw(
         self,
         key: jax.Array,
         states: jax.Array,
@@ -114,7 +130,12 @@ class ActionDispersionLoss(WeightedLossFunc):
 
         loss = -jnp.mean(jnp.log(pairwise_latent_action_diffs_norm + 1.0))
 
-        infos = Infos()
-        infos = infos.add_info("raw", loss)
+        return loss, Infos()
 
-        return loss, infos
+    @dataclass
+    class Config(WeightedLossFunc.Config):
+        loss_type: str = "action_dispersion"
+        num_samples: int = 16
+
+
+cs.store(group="loss", name="state_dispersion", node=StateDispersionLoss.Config)

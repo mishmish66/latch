@@ -205,14 +205,14 @@ class OptimizerPolicy(Policy[jax.Array], ABC):
 
         infos = Infos()
 
-        infos = infos.add_info("starting expected cost", costs[0])
-        infos = infos.add_info("mid expected cost", costs[costs.shape[0] // 2])
-        infos = infos.add_info("min expected cost", jnp.min(costs))
-        infos = infos.add_info("max expected cost", jnp.max(costs))
-        infos = infos.add_info("final expected cost", costs[-1])
-        infos = infos.add_info("big active inds", big_active_inds)
-        infos = infos.add_info("max cost idx", jnp.argmax(costs))
-        infos = infos.add_info("min cost idx", jnp.argmin(costs))
+        infos = infos.add_info("starting_expected_cost", costs[0])
+        infos = infos.add_info("mid_expected_cost", costs[costs.shape[0] // 2])
+        infos = infos.add_info("min_expected_cost", jnp.min(costs))
+        infos = infos.add_info("max_expected_cost", jnp.max(costs))
+        infos = infos.add_info("final_expected_cost", costs[-1])
+        infos = infos.add_info("big_active_inds", big_active_inds)
+        infos = infos.add_info("max_cost_idx", jnp.argmax(costs))
+        infos = infos.add_info("min_cost_idx", jnp.argmin(costs))
 
         return optimized_actions, infos
 

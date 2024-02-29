@@ -35,7 +35,7 @@ class Trainer:
         wandb.init(
             project="latch",
             # name="latch",
-            config=OmegaConf.to_container(train_config), # type: ignore
+            config=OmegaConf.to_container(train_config),  # type: ignore
             dir=self.checkpoint_dir,
             mode="disabled" if not self.use_wandb else "online",
         )
@@ -98,18 +98,18 @@ class Trainer:
 
         rng, key = jax.random.split(key)
         rngs = jax.random.split(rng, 32)
-        _, infos, dense_states = jax.vmap(
+        _, eval_infos, dense_states = jax.vmap(
             Partial(
                 eval_actor,
                 start_state=train_state.config.env.reset(),
                 train_state=train_state,
                 policy=policy,
             )
-        )(
-            key=rngs,
-        )
+        )(key=rngs)
 
-        infos: Infos = infos.condense(method="unstack")
+        eval_infos: Infos = eval_infos.condense(method="mean") # TODO: Change this back to unstack
+        infos = Infos().add_info("eval_infos", eval_infos)
+        infos.dump_to_console(train_state.step)
         infos.dump_to_wandb(train_state.step)
         train_state.config.env.send_wandb_video(
             name="Actor Video",
@@ -162,8 +162,5 @@ class Trainer:
             self.train_loop_body,
             train_state,
         )
-
-        # while not self.train_state.is_done():
-        #     self.train_state = self.train_loop_body(self.train_state)
 
         return trained_state

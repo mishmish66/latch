@@ -1,23 +1,25 @@
-from latch.models import ModelState
-
-from latch import Infos
-
-import jax_dataclasses as jdc
+import dataclasses
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, List, Tuple
 
 import jax
+import jax_dataclasses as jdc
+from einops import rearrange
 from jax import numpy as jnp
-
+from omegaconf import OmegaConf
 from overrides import override
 
-from einops import rearrange
-
-from typing import Any, List, Tuple
-from abc import ABC, abstractmethod
+from latch import Infos
+from latch.models import ModelState
 
 
+@jdc.pytree_dataclass(kw_only=True)
 class LossFunc(ABC):
+    name: str
+
     @abstractmethod
-    def compute(
+    def compute_raw(
         self,
         key: jax.Array,
         states: jax.Array,
@@ -37,16 +39,23 @@ class LossFunc(ABC):
         """
         pass
 
-    def __call__(
+    def postprocess(
         self,
-        key: jax.Array,
-        states: jax.Array,
-        actions: jax.Array,
-        models: ModelState,
-    ):
-        loss, infos = self.compute(key, states, actions, models)
+        gated_loss: jax.Array,
+        infos: Infos,
+    ) -> Tuple[jax.Array, Infos]:
+        return gated_loss, infos
 
-        return loss, infos
+    @dataclass
+    class Config:
+        name: str
+        loss_type: str
+
+    @classmethod
+    def configure(cls, config: "LossFunc.Config") -> "LossFunc":
+        arg_dict: dict = OmegaConf.to_container(config)  # type: ignore
+        arg_dict.pop("loss_type")
+        return cls(**arg_dict)
 
 
 @jdc.pytree_dataclass(kw_only=True)
@@ -55,21 +64,16 @@ class WeightedLossFunc(LossFunc):
 
     weight: float = 1.0
 
-    def __call__(
-        self,
-        key: jax.Array,
-        states: jax.Array,
-        actions: jax.Array,
-        models: ModelState,
-    ):
-        super_loss, infos = super().__call__(
-            key=key,
-            states=states,
-            actions=actions,
-            models=models,
-        )
+    def postprocess(
+        self, gated_loss: jax.Array, infos: Infos
+    ) -> Tuple[jax.Array, Infos]:
+        super_loss, infos = super().postprocess(gated_loss, infos)
 
         weighted_loss = super_loss * self.weight
         infos = infos.add_info("weighted_loss", weighted_loss)
 
         return weighted_loss, infos
+
+    @dataclass
+    class Config(LossFunc.Config):
+        weight: float = 1.0

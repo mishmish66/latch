@@ -23,7 +23,7 @@ class Finger(Env):
 
     _host_model: jdc.Static[mujoco.MjModel]  # type: ignore
     _model: mjx.Model
-    _renderer: MJXRenderer
+    _renderer: jdc.Static[MJXRenderer]
 
     @classmethod
     def init(
@@ -55,7 +55,9 @@ class Finger(Env):
         host_model.opt.timestep = substep_dt
         host_model = host_model
         model = mjx.put_model(host_model)
-        renderer = MJXRenderer(host_model, 512, 512)
+        renderer = MJXRenderer(
+            host_model, 512, 512, num_workers=1
+        )  # TODO: Change back to parallel rendering
 
         return cls(
             action_bounds=action_bounds,

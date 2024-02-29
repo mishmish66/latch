@@ -67,10 +67,6 @@ class StateEncoder(nn.Module):
             x = nn.relu(x)
 
         x = self.dense_layers[-1](x)
-        x_mean = x[..., : self.latent_state_dim]
-        x_std = x[..., self.latent_state_dim :]
-        x_std = nn.softplus(x_std)
-        x = jnp.concatenate([x_mean, x_std], axis=-1)
         return x
 
 
@@ -98,10 +94,6 @@ class StateDecoder(nn.Module):
             x = layer(x)
             x = nn.relu(x)
         x = self.dense_layers[-1](x)
-        x_mean = x[..., : self.state_dim]
-        x_std = x[..., self.state_dim :]
-        x_std = nn.softplus(x_std)
-        x = jnp.concatenate([x_mean, x_std], axis=-1)
         return x
 
 
@@ -131,11 +123,6 @@ class ActionEncoder(nn.Module):
             x = nn.relu(x)
 
         x = self.dense_layers[-1](x)
-
-        x_mean = x[..., : self.latent_action_dim]
-        x_std = x[..., self.latent_action_dim :]
-        x_std = nn.softplus(x_std)
-        x = jnp.concatenate([x_mean, x_std], axis=-1)
         return x
 
 
@@ -163,10 +150,6 @@ class ActionDecoder(nn.Module):
             x = layer(x)
             x = nn.relu(x)
         x = self.dense_layers[-1](x)
-        x_mean = x[..., : self.act_dim]
-        x_std = x[..., self.act_dim :]
-        x_std = nn.softplus(x_std)
-        x = jnp.concatenate([x_mean, x_std], axis=-1)
         return x
 
 

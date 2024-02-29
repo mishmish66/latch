@@ -1,24 +1,31 @@
+from dataclasses import dataclass
 from typing import Tuple
 
 import jax
 import jax_dataclasses as jdc
 from einops import rearrange
+from hydra.core.config_store import ConfigStore
 from jax import numpy as jnp
 from jax.tree_util import Partial
 from overrides import override
 
 from latch import Infos
+from latch.loss.loss_func import LossFunc
 from latch.models import ModelState
 
 from .loss_func import WeightedLossFunc
+from .loss_registry import register_loss
+
+cs = ConfigStore.instance()
 
 
+@register_loss("state_reconstruction")
 @jdc.pytree_dataclass(kw_only=True)
 class StateReconstructionLoss(WeightedLossFunc):
     """Computes the action reconstruction loss for a set of states and actions."""
 
     @override
-    def compute(
+    def compute_raw(
         self,
         key: jax.Array,
         states: jax.Array,
@@ -53,18 +60,25 @@ class StateReconstructionLoss(WeightedLossFunc):
         losses = error_square  # + error_log
         loss = jnp.mean(losses)
 
-        infos = Infos()
-        infos = infos.add_info("raw", loss)
+        return loss, Infos()
 
-        return loss, infos
+    @dataclass
+    class Config(WeightedLossFunc.Config):
+        loss_type: str = "state_reconstruction"
 
 
+cs.store(group="loss", name="state_reconstruction", node=StateReconstructionLoss.Config)
+
+
+@register_loss("action_reconstruction")
 @jdc.pytree_dataclass(kw_only=True)
 class ActionReconstructionLoss(WeightedLossFunc):
     """Computes the reconstruction loss for a set of states and actions."""
 
+    name: str = "action_reconstruction"
+
     @override
-    def compute(
+    def compute_raw(
         self,
         key: jax.Array,
         states: jax.Array,
@@ -106,7 +120,13 @@ class ActionReconstructionLoss(WeightedLossFunc):
         losses = error_square  # + error_log
         loss = jnp.mean(losses)
 
-        infos = Infos()
-        infos = infos.add_info("raw", loss)
+        return loss, Infos()
 
-        return loss, infos
+    @dataclass
+    class Config(WeightedLossFunc.Config):
+        loss_type: str = "action_reconstruction"
+
+
+cs.store(
+    group="loss", name="action_reconstruction", node=ActionReconstructionLoss.Config
+)

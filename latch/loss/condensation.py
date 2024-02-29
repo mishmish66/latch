@@ -3,6 +3,7 @@ from typing import Tuple
 import jax
 import jax_dataclasses as jdc
 from einops import rearrange
+from hydra.core.config_store import ConfigStore
 from jax import numpy as jnp
 from overrides import override
 
@@ -10,13 +11,16 @@ from latch import Infos
 from latch.models import ModelState
 
 from .loss_func import WeightedLossFunc
+from .loss_registry import register_loss
+
+cs = ConfigStore.instance()
 
 
+@register_loss("state_condensation")
 @jdc.pytree_dataclass(kw_only=True)
 class StateCondensationLoss(WeightedLossFunc):
-    # class StateCondensationLoss(SpikeGatedLoss):
     @override
-    def compute(
+    def compute_raw(
         self,
         key: jax.Array,
         states: jax.Array,
@@ -55,12 +59,18 @@ class StateCondensationLoss(WeightedLossFunc):
 
         return loss, infos
 
+    class Config(WeightedLossFunc.Config):
+        loss_type: str = "state_condensation"
 
+
+cs.store(group="loss", name="state_condensation", node=StateCondensationLoss)
+
+
+@register_loss("action_condensation")
 @jdc.pytree_dataclass(kw_only=True)
 class ActionCondensationLoss(WeightedLossFunc):
-    # class ActionCondensationLoss(SpikeGatedLoss):
     @override
-    def compute(
+    def compute_raw(
         self,
         key: jax.Array,
         states: jax.Array,
@@ -106,7 +116,10 @@ class ActionCondensationLoss(WeightedLossFunc):
         losses = action_radius_violation_log
         loss = jnp.mean(losses)
 
-        infos = Infos()
-        infos = infos.add_info("raw", loss)
+        return loss, Infos()
 
-        return loss, infos
+    class Config(WeightedLossFunc.Config):
+        loss_type: str = "action_condensation"
+
+
+cs.store(group="loss", name="action_condensation", node=ActionCondensationLoss.Config)

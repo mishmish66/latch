@@ -5,7 +5,6 @@ import hydra
 import jax
 import optax
 from hydra.core.config_store import ConfigStore
-from loss_gate_graph import Edge, LossGateGraph, SigmoidGate, SpikeGate
 from omegaconf import DictConfig, OmegaConf
 
 from latch import LatchConfig, LatchState
@@ -21,6 +20,10 @@ from latch.loss import (
     StateDispersionLoss,
     StateReconstructionLoss,
 )
+from latch.loss.gates import Gate, gate_dict
+from latch.loss.loss_func import LossFunc
+from latch.loss.loss_graph import GateEdge, LossGateGraph
+from latch.loss.loss_registry import loss_dict
 from latch.models import (
     ActionDecoder,
     ActionEncoder,
@@ -60,21 +63,23 @@ class NetConfig:
 class EdgeConfig:
     source: str
     target: str
-    gate: DictConfig
+    gate_config: Gate.Config
 
 
 @dataclass
 class LatchLossConfig:
-    loss_edges: List[EdgeConfig]
+    edge_config_list: List[EdgeConfig]
 
-    state_reconstruction_loss_config: DictConfig
-    action_reconstruction_loss_config: DictConfig
-    forward_loss_config: DictConfig
-    state_condensation_loss_config: DictConfig
-    action_condensation_loss_config: DictConfig
-    smoothness_loss_config: DictConfig
-    state_dispersion_loss_config: DictConfig
-    action_dispersion_loss_config: DictConfig
+    loss_config_list: List[LossFunc.Config]
+
+    # state_reconstruction_loss_config: StateReconstructionLoss.Config
+    # action_reconstruction_loss_config: ActionReconstructionLoss.Config
+    # forward_loss_config: ForwardLoss.Config
+    # state_condensation_loss_config: StateCondensationLoss.Config
+    # action_condensation_loss_config: ActionCondensationLoss.Config
+    # smoothness_loss_config: SmoothnessLoss.Config
+    # state_dispersion_loss_config: StateDispersionLoss.Config
+    # action_dispersion_loss_config: ActionDispersionLoss.Config
 
 
 @dataclass
@@ -102,9 +107,16 @@ class TrainConfig:
     loss_config: LatchLossConfig
 
 
+### Register Configs ####
+
 cs = ConfigStore.instance()
 cs.store(name="net_config", node=NetConfig)
+cs.store(name="edge_config", node=EdgeConfig)
+cs.store(name="latch_loss_config", node=LatchLossConfig)
 cs.store(name="train_config", node=TrainConfig)
+
+
+### Process Configs ####
 
 
 def configure_nets(net_config: NetConfig):
@@ -132,71 +144,34 @@ def configure_nets(net_config: NetConfig):
     )
 
 
-name_to_gate = {"spike": SpikeGate, "sigmoid": SigmoidGate}
+def configure_loss(latch_loss_config: LatchLossConfig):
 
-name_to_loss_func = {
-    "state_reconstruction_loss": StateReconstructionLoss,
-    "action_reconstruction_loss": ActionReconstructionLoss,
-    "forward_loss": ForwardLoss,
-    "state_condensation_loss": StateCondensationLoss,
-    "action_condensation_loss": ActionCondensationLoss,
-    "smoothness_loss": SmoothnessLoss,
-    "state_dispersion_loss": StateDispersionLoss,
-    "action_dispersion_loss": ActionDispersionLoss,
-}
-
-
-def configure_loss(loss_config: LatchLossConfig):
+    losses = []
+    for loss_config in latch_loss_config.loss_config_list:
+        loss_class = loss_dict[loss_config.loss_type]
+        loss_instance = loss_class.configure(loss_config)
+        losses.append(loss_instance)
 
     edges = []
-    for edge_config in loss_config.loss_edges:
-        source = name_to_loss_func[edge_config.source]
-        target = name_to_loss_func[edge_config.target]
-        gate_class = name_to_gate[edge_config.gate.type]
-        gate_params = {
-            param_name: param_val
-            for param_name, param_val in OmegaConf.to_container(
-                edge_config.gate
-            ).items()  # type: ignore
-            if param_name != "type"
-        }
-        gate = gate_class(**gate_params)
+    for edge_config in latch_loss_config.edge_config_list:
+        source = edge_config.source
+        target = edge_config.target
+
+        gate_config = edge_config.gate_config
+        gate_class = gate_dict[gate_config.gate_type]
+        gate_instance = gate_class.configure(gate_config)
+
         edges.append(
-            Edge(
+            GateEdge(
                 source=source,
                 target=target,
-                gate=gate,
+                gate=gate_instance,
             )
         )
 
     return LatchLoss(
+        loss_list=losses,
         loss_gate_graph=LossGateGraph(edges=edges),
-        state_reconstruction_loss=StateReconstructionLoss(
-            weight=loss_config.state_reconstruction_loss_config.weight,
-        ),
-        action_reconstruction_loss=ActionReconstructionLoss(
-            weight=loss_config.action_reconstruction_loss_config.weight,
-        ),
-        forward_loss=ForwardLoss(
-            weight=loss_config.forward_loss_config.weight,
-        ),
-        state_condensation_loss=StateCondensationLoss(
-            weight=loss_config.state_condensation_loss_config.weight,
-        ),
-        action_condensation_loss=ActionCondensationLoss(
-            weight=loss_config.action_condensation_loss_config.weight,
-        ),
-        smoothness_loss=SmoothnessLoss(
-            weight=loss_config.smoothness_loss_config.weight,
-        ),
-        state_dispersion_loss=StateDispersionLoss(
-            weight=loss_config.state_dispersion_loss_config.weight,
-            num_samples=loss_config.state_dispersion_loss_config.num_samples,
-        ),
-        action_dispersion_loss=ActionDispersionLoss(
-            weight=loss_config.action_dispersion_loss_config.weight,
-            num_samples=loss_config.action_dispersion_loss_config.num_samples,
-        ),
     )
 
 

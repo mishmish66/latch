@@ -1,62 +1,78 @@
-state_reconstruction_loss_config:
-  weight: 25.0
-action_reconstruction_loss_config:
-  weight: 0.25
-forward_loss_config:
-  weight: 1.0
-state_condensation_loss_config:
-  weight: 1.0
-action_condensation_loss_config:
-  weight: 1.0
-smoothness_loss_config:
-  weight: 1.0
-state_dispersion_loss_config:
-  weight: 1.0
-  num_samples: 16
-action_dispersion_loss_config:
-  weight: 1.0
-  num_samples: 16
+loss_config_list:
+  - loss_type: "state_reconstruction"
+    name: "state_reconstruction"
+    weight: 25.0
 
-loss_edges:
-  - source: "state_reconstruction_loss"
-    target: "forward_loss"
-    gate:
-      type: "spike"
+  - loss_type: "action_reconstruction"
+    name: "action_reconstruction"
+    weight: 0.25
+
+  - loss_type: "forward"
+    name: "forward"
+    weight: 1.0
+
+  - loss_type: "state_condensation"
+    name: "state_condensation"
+    weight: 1.0
+
+  - loss_type: "action_condensation"
+    name: "action_condensation"
+    weight: 1.0
+
+  - loss_type: "smoothness"
+    name: "smoothness"
+    weight: 1.0
+
+  - loss_type: "state_dispersion"
+    name: "state_dispersion"
+    weight: 1.0
+    num_samples: 16
+
+  - loss_type: "action_dispersion"
+    name: "action_dispersion"
+    weight: 1.0
+    num_samples: 16
+
+edge_config_list:
+  - source: "state_reconstruction"
+    target: "forward"
+    gate_config:
+      gate_type: "spike"
+      sharpness: 1e4
+      center: 0.0
+  - source: "action_reconstruction"
+    target: "forward"
+    gate_config:
+      gate_type: "spike"
+      sharpness: 1e4
+      center: 0.0
+  - source: "forward"
+    target: "state_condensation"
+    gate_config:
+      gate_type: "spike"
       sharpness: 1e5
       center: 0.0
-  - source: "action_reconstruction_loss"
-    target: "forward_loss"
-    gate:
-      type: "spike"
+  - source: "forward"
+    target: "action_condensation"
+    gate_config:
+      gate_type: "spike"
       sharpness: 1e5
       center: 0.0
-  - source: "forward_loss"
-    target: "state_condensation_loss"
-    gate:
-      type: "spike"
+  - source: "forward"
+    target: "smoothness"
+    gate_config:
+      gate_type: "spike"
       sharpness: 1e5
       center: 0.0
-  - source: "forward_loss"
-    target: "action_condensation_loss"
-    gate:
-      type: "spike"
+  - source: "forward"
+    target: "state_dispersion"
+    gate_config:
+      gate_type: "spike"
       sharpness: 1e5
       center: 0.0
-  - source: "forward_loss"
-    target: "smoothness_loss"
-    gate:
-      type: "spike"
-      sharpness: 1e5
-      center: 0.0
-  - source: "forward_loss"
-    target: "state_dispersion_loss"
-    gate:
-      type: "spike"
-      sharpness: 1e5
-      center: 0.0
-  - source: "forward_loss"
-    target: "action_dispersion_loss"
-    gate:
-      type: "spike"
+  - source: "forward"
+    target: "action_dispersion"
+    gate_config:
+      gate_type: "spike"
       sharpness: 1e5
       center: 0.0
