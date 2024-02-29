@@ -38,41 +38,41 @@ edge_config_list:
     target: "forward"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e4
+      sharpness: 5e4
       center: 0.0
   - source: "action_reconstruction"
     target: "forward"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e4
+      sharpness: 1e5
       center: 0.0
   - source: "forward"
     target: "state_condensation"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e5
+      sharpness: 1e4
       center: 0.0
   - source: "forward"
     target: "action_condensation"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e5
+      sharpness: 1e4
       center: 0.0
   - source: "forward"
     target: "smoothness"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e5
+      sharpness: 1e4
       center: 0.0
   - source: "forward"
     target: "state_dispersion"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e5
+      sharpness: 1e4
       center: 0.0
   - source: "forward"
     target: "action_dispersion"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e5
+      sharpness: 1e4
       center: 0.0
