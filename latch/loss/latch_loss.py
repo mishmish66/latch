@@ -22,6 +22,12 @@ class LatchLoss:
     loss_list: jdc.Static[List[LossFunc]]
     loss_gate_graph: jdc.Static[LossGateGraph]
 
+    def get_loss(self, name: str) -> LossFunc:
+        for loss in self.loss_list:
+            if loss.name == name:
+                return loss
+        raise ValueError(f"Loss {name} not found in loss list")
+
     def compute(
         self,
         key: jax.Array,
@@ -46,7 +52,7 @@ class LatchLoss:
         for loss in self.loss_list:
             rng, key = jax.random.split(key)
             raw_loss, info = loss.compute_raw(rng, states, actions, models)
-            raw_loss_info_vals[loss.name] = raw_loss, info
+            raw_loss_info_vals[loss.name] = raw_loss, info.add_info("raw", raw_loss)
 
         # Compute the gate values for the graph
         raw_loss_vals = {
@@ -55,13 +61,16 @@ class LatchLoss:
         }
         gate_vals = self.loss_gate_graph.forward(raw_loss_vals)
 
-        final_vals_infos = {
-            loss_name: (
-                raw_loss * gate_vals[loss_name],
+        final_vals_infos = {}
+        for loss_name, (raw_loss, info) in raw_loss_info_vals.items():
+            gated_loss = raw_loss * gate_vals[loss_name]
+            postprocessed_loss, info = self.get_loss(loss_name).postprocess(
+                gated_loss, info
+            )
+            final_vals_infos[loss_name] = (
+                postprocessed_loss,
                 info.add_info("gate", gate_vals[loss_name]),
             )
-            for loss_name, (raw_loss, infos) in raw_loss_info_vals.items()
-        }
 
         # Merge the infos
         infos = Infos()
