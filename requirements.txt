@@ -14,5 +14,7 @@ orbax-checkpoint
 Pillow
 wandb>=0.16.0
 jax_dataclasses
+overrides
+hydra-core
 
 mjx_render @ git+https://github.com/mishmish66/mjx_render.git
