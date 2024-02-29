@@ -103,9 +103,10 @@ class SmoothnessLoss(WeightedLossFunc):
                 0.0, pairwise_neighborhood_state_dists - 1.0
             )
 
-            neighborhood_violation_logs = jnp.log(neighborhood_violations + 1e-6)
+            # neighborhood_violation_logs = jnp.log(neighborhood_violations + 1e-6)
+            neighborhood_violation_square = jnp.square(neighborhood_violations)
 
-            total_loss = jnp.mean(neighborhood_violation_logs)
+            total_loss = jnp.mean(neighborhood_violation_square)
 
             return total_loss
 
