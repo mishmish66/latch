@@ -56,7 +56,7 @@ class Finger(Env):
         host_model = host_model
         model = mjx.put_model(host_model)
         renderer = MJXRenderer(
-            host_model, 512, 512, num_workers=1
+            host_model, 512, 512
         )  # TODO: Change back to parallel rendering
 
         return cls(
