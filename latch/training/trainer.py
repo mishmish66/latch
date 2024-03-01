@@ -23,7 +23,6 @@ from .train_rollout import train_rollout
 
 class Trainer:
     def __init__(self, train_config: TrainConfig):
-        self.checkpoint_dir = Path(train_config.checkpoint_dir)
         self.checkpoint_count = train_config.checkpoint_count
         self.save_every = train_config.save_every
         self.eval_every = train_config.eval_every
@@ -33,11 +32,13 @@ class Trainer:
 
         wandb.init(
             project="latch",
-            # name="latch",
+            id=getattr(train_config, "resume_id", None),
+            resume="must" if hasattr(train_config, "resume_id") else "never",
             config=OmegaConf.to_container(train_config),  # type: ignore
-            dir=self.checkpoint_dir,
             mode="disabled" if not self.use_wandb else "online",
         )
+
+        self.checkpoint_dir = Path(train_config.checkpoint_dir) / wandb.run.id  # type: ignore
 
     def host_save_model(self, train_state):
         """This is a callback that runs on the host and saves the model to disk."""
@@ -153,6 +154,18 @@ class Trainer:
 
     def train(self, train_state: LatchState):
         """Runs the training loop."""
+
+        if wandb.run.resumed:  # type: ignore
+            # If the run is resumed, we need to load the checkpoint
+            checkpoint_path: Path = self.checkpoint_dir / "checkpoint_latest.zip"  # type: ignore
+            wandb.restore(checkpoint_path.name, root=checkpoint_path.parent)
+            # Extract the zip file
+            shutil.unpack_archive(checkpoint_path, checkpoint_path.with_suffix(""))
+            train_state = self.checkpointer.restore(
+                checkpoint_path.with_suffix("").absolute(), item=train_state
+            )
+
+            print(f"Checkpoint loaded from {checkpoint_path}! 🐔")
 
         # Log that we're starting training
         print("Starting Training Loop 🤓")
