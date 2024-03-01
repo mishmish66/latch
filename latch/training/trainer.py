@@ -1,9 +1,7 @@
 import os
 import shutil
-from latch.config import TrainConfig
+from dataclasses import dataclass
 from pathlib import Path
-
-from .train_rollout import train_rollout
 
 import hydra
 import jax
@@ -16,10 +14,11 @@ from jax.tree_util import Partial, register_pytree_node_class
 from omegaconf import DictConfig, OmegaConf
 
 from latch import Infos, LatchState
+from latch.config import TrainConfig
 from latch.policy import ActorPolicy
 from latch.rollout import eval_actor
 
-from dataclasses import dataclass
+from .train_rollout import train_rollout
 
 
 class Trainer:
@@ -29,7 +28,7 @@ class Trainer:
         self.save_every = train_config.save_every
         self.eval_every = train_config.eval_every
         self.use_wandb = train_config.use_wandb
-        self.checkpointer = ocp.PyTreeCheckpointer()
+        self.checkpointer = ocp.StandardCheckpointer()
         self.checkpoint_paths = []
 
         wandb.init(
