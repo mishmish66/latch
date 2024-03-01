@@ -65,9 +65,6 @@ def train_rollout(train_state: LatchState) -> LatchState:
 
     (states, actions), rollout_infos, dense_states = rollout_result
 
-    # Squash the infos
-    rollout_infos = rollout_infos.condense(method="mean")
-
     # Grab the final states reached during the rollouts
     final_states = states[..., -1, :]
 
@@ -79,8 +76,11 @@ def train_rollout(train_state: LatchState) -> LatchState:
 
     # Add more infos
     rollout_infos = rollout_infos.add_info(
-        "mean_rollout_costs", final_latent_diff_norms_mean
+        "mean_rollout_costs", final_latent_diff_norms
     )
+    # Squash the infos
+    rollout_infos = rollout_infos.condense(method="unstack").condense(method="unstack")
+
     infos = Infos()
     infos = infos.add_info("rollout_infos", rollout_infos)
 
