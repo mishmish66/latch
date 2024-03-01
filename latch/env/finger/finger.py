@@ -55,9 +55,7 @@ class Finger(Env):
         host_model.opt.timestep = substep_dt
         host_model = host_model
         model = mjx.put_model(host_model)
-        renderer = MJXRenderer(
-            host_model, 512, 512
-        )  # TODO: Change back to parallel rendering
+        renderer = MJXRenderer(host_model, 512, 512, num_workers=8)
 
         return cls(
             action_bounds=action_bounds,
