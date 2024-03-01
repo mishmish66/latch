@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 import hydra
 import jax
@@ -105,6 +105,8 @@ class TrainConfig:
     resume: bool
 
     loss_config: LatchLossConfig
+
+    warm_start_path: Optional[str] = None
 
 
 ### Register Configs ####

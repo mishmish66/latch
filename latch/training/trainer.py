@@ -30,6 +30,12 @@ class Trainer:
         self.checkpointer = ocp.StandardCheckpointer()
         self.checkpoint_paths = []
 
+        self.warm_start_path = (
+            Path(train_config.warm_start_path)
+            if train_config.warm_start_path is not None
+            else None
+        )
+
         wandb.init(
             project="latch",
             id=getattr(train_config, "resume_id", None),
@@ -157,6 +163,17 @@ class Trainer:
 
     def train(self, train_state: LatchState):
         """Runs the training loop."""
+
+        if self.warm_start_path is not None:
+            # Extract the zip file
+            shutil.unpack_archive(
+                self.warm_start_path, self.warm_start_path.with_suffix("")
+            )
+            warm_state = self.checkpointer.restore(
+                self.warm_start_path.with_suffix("").absolute(), item=train_state
+            )
+            train_state = train_state.warm_start(warm_state)
+            print(f"Warm start loaded from {self.warm_start_path}! 🌋")
 
         if wandb.run.resumed:  # type: ignore
             # If the run is resumed, we need to load the checkpoint

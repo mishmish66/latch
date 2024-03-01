@@ -192,6 +192,14 @@ class LatchState:
 
         return next_train_state, infos
 
+    def warm_start(self, other_state: "LatchState") -> "LatchState":
+        with jdc.copy_and_mutate(self) as new_state:
+            new_state.primary_params = other_state.primary_params
+            new_state.target_params = other_state.target_params
+            new_state.opt_state = other_state.opt_state
+
+        return new_state
+
     @property
     def primary_models(self):
         return ModelState(net_params=self.primary_params, nets=self.config.nets)
