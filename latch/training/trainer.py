@@ -107,9 +107,12 @@ class Trainer:
             )
         )(key=rngs)
 
-        eval_infos: Infos = eval_infos.condense(method="unstack").condense(
+        eval_info_hists: Infos = eval_infos.condense(method="unstack").condense(
             method="unstack"
-        )  # TODO: Change this back to unstack
+        )
+        eval_infos = eval_infos.condense(method="mean").condense(method="mean")
+        eval_infos = eval_infos.add_info("hists", eval_info_hists)
+
         infos = Infos().add_info("eval_infos", eval_infos)
         infos.dump_to_wandb(train_state.step)
         train_state.config.env.send_wandb_video(
