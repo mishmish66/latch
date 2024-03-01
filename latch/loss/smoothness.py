@@ -14,7 +14,6 @@ from latch.models import ModelState
 from .loss_func import WeightedLossFunc
 from .loss_registry import register_loss
 
-
 cs = ConfigStore.instance()
 
 
@@ -103,10 +102,10 @@ class SmoothnessLoss(WeightedLossFunc):
                 0.0, pairwise_neighborhood_state_dists - 1.0
             )
 
-            # neighborhood_violation_logs = jnp.log(neighborhood_violations + 1e-6)
-            neighborhood_violation_square = jnp.square(neighborhood_violations)
+            neighborhood_violation_logs = jnp.log(neighborhood_violations + 1)
+            # neighborhood_violation_square = jnp.square(neighborhood_violations)
 
-            total_loss = jnp.mean(neighborhood_violation_square)
+            total_loss = jnp.mean(neighborhood_violation_logs)
 
             return total_loss
 
