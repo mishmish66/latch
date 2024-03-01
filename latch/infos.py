@@ -88,7 +88,7 @@ class Infos:
             Infos: The condensed infos object.
         """
         methods_dict = {
-            "mean": lambda x: jnp.mean(x, axis=0),
+            "mean": lambda x: (jnp.mean(x, axis=0) if len(x.shape) >= 1 else x),
             "unstack": lambda x: jnp.reshape(x, (-1, *x.shape[2:])),
         }
 
