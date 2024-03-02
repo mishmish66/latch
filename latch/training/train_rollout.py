@@ -27,17 +27,25 @@ def train_rollout(train_state: LatchState) -> LatchState:
     rng, key = jax.random.split(key)
 
     # TODO: consider switching away from shell targets
-    random_vectors = jax.random.normal(
-        key=rng,
-        shape=[
-            train_state.config.traj_per_rollout,
-            train_state.config.latent_state_dim,
-        ],
-    )
-    random_vector_norms = jnp.linalg.norm(random_vectors, ord=1, axis=-1)
-    unit_norm_samples = random_vectors / random_vector_norms[..., None]
+    # random_vectors = jax.random.normal(
+    #     key=rng,
+    #     shape=[
+    #         train_state.config.traj_per_rollout,
+    #         train_state.config.latent_state_dim,
+    #     ],
+    # )
+    # random_vector_norms = jnp.linalg.norm(random_vectors, ord=1, axis=-1)
+    # unit_norm_samples = random_vectors / random_vector_norms[..., None]
 
-    target_states = unit_norm_samples * train_state.config.latent_state_radius * 1.1
+    # target_states = unit_norm_samples * train_state.config.latent_state_radius * 1.1
+
+    unit_ball_samples = jax.random.ball(
+        key=rng,
+        d=train_state.config.latent_state_dim,
+        p=1.0,
+        shape=[train_state.config.traj_per_rollout],
+    )
+    target_states = unit_ball_samples * train_state.config.latent_state_radius * 1.1
 
     # Define a function that makes a policy for a given target
     def make_policy(target: jax.Array):
