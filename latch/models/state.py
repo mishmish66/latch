@@ -141,12 +141,14 @@ class ModelState:
             return norms > outer_radius
 
         def cond_fun(while_pack):
-            samples, key = while_pack
+            samples, key, count = while_pack
 
-            return jnp.any(check_samples(samples))
+            samples_good = jnp.any(check_samples(samples))
+
+            return jnp.logical_and(samples_good, count < 16)
 
         def body_fun(while_pack):
-            samples, key = while_pack
+            samples, key, count = while_pack
 
             rng, key = jax.random.split(key)
             return (
@@ -156,13 +158,14 @@ class ModelState:
                     samples,
                 ),
                 key,
+                count + 1,
             )
 
         rng, key = jax.random.split(key)
-        neighborhood_samples, _ = jax.lax.while_loop(
+        neighborhood_samples, _, _ = jax.lax.while_loop(
             cond_fun=cond_fun,
             body_fun=body_fun,
-            init_val=(neighborhood_samples, rng),
+            init_val=(neighborhood_samples, rng, 0),
         )
 
         return neighborhood_samples
