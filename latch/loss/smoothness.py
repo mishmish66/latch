@@ -149,9 +149,7 @@ class SmoothnessLoss(WeightedLossFunc):
                 pairwise_sample_dist_geoms[..., None, :] * neighborhood_violation_logs
             )
 
-            total_loss = jnp.mean(neighborhood_violation_logs) + jnp.mean(
-                closeness_loss
-            )
+            total_loss = jnp.mean(closeness_loss)
 
             return total_loss
 
