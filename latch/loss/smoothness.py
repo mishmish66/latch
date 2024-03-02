@@ -141,7 +141,7 @@ class SmoothnessLoss(WeightedLossFunc):
             pairwise_sample_dists = jnp.linalg.norm(
                 pairwise_sample_diffs, ord=1, axis=-1
             )
-            pairwise_sample_dist_geoms = jnp.power(1 / 25, pairwise_sample_dists)
+            pairwise_sample_dist_geoms = jnp.power(1 / 5, pairwise_sample_dists)
 
             neighborhood_violation_logs = jnp.log(neighborhood_violations + 1)
             # neighborhood_violation_square = jnp.square(neighborhood_violations)
