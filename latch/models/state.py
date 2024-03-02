@@ -84,16 +84,17 @@ class ModelState:
         key: jax.Array,
         latent_state: jax.Array,
         count: int = 1,
-    ):
+    ) -> jax.Array:
         rng, key = jax.random.split(key)
-        ball_sample = jax.random.ball(
-            rng,
-            self.latent_state_dim,
-            p=1,
-            shape=(count,),
+        neighborhood_states = self._generate_valid_neighborhood_samples(
+            key=rng,
+            x=latent_state,
+            d=self.latent_state_dim,
+            outer_radius=self.latent_state_radius,
+            count=count,
         )
 
-        return latent_state + ball_sample
+        return neighborhood_states
 
     def get_neighborhood_actions(
         self,
@@ -102,11 +103,66 @@ class ModelState:
         count: int = 1,
     ):
         rng, key = jax.random.split(key)
-        ball_sample = jax.random.ball(
-            rng,
+        neighborhood_actions = self._generate_valid_neighborhood_samples(
+            key=rng,
+            x=latent_action,
             d=self.latent_action_dim,
-            p=1,
-            shape=(count,),
+            outer_radius=self.latent_action_radius,
+            count=count,
         )
 
-        return latent_action + ball_sample
+        return neighborhood_actions
+
+    def _generate_valid_neighborhood_samples(
+        self,
+        key: jax.Array,
+        x: jax.Array,
+        d: int,
+        outer_radius: float,
+        count: int = 1,
+    ) -> jax.Array:
+        def generate_samples(rng):
+            ball_samples = jax.random.ball(
+                rng,
+                d=d,
+                p=1,
+                shape=(count,),
+            )
+
+            return ball_samples + x
+
+        rng, key = jax.random.split(key)
+        neighborhood_samples = generate_samples(rng)
+
+        # Force the neighborhood samples to be inside the outer radius
+        def check_samples(samples):
+            norms = jnp.linalg.norm(samples, ord=1, axis=-1)
+
+            return norms > outer_radius
+
+        def cond_fun(while_pack):
+            samples, key = while_pack
+
+            return jnp.any(check_samples(samples))
+
+        def body_fun(while_pack):
+            samples, key = while_pack
+
+            rng, key = jax.random.split(key)
+            return (
+                jnp.where(
+                    check_samples(samples)[..., None],
+                    generate_samples(rng),
+                    samples,
+                ),
+                key,
+            )
+
+        rng, key = jax.random.split(key)
+        neighborhood_samples, _ = jax.lax.while_loop(
+            cond_fun=cond_fun,
+            body_fun=body_fun,
+            init_val=(neighborhood_samples, rng),
+        )
+
+        return neighborhood_samples
