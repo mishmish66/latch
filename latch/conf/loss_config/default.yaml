@@ -74,11 +74,11 @@ edge_config_list:
     target: "state_dispersion"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e4
+      sharpness: 1e3
       center: 0.0
   - source: "smoothness"
     target: "action_dispersion"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e4
+      sharpness: 1e3
       center: 0.0
