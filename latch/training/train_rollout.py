@@ -1,16 +1,16 @@
-from .train_epoch import train_epoch
-from latch.rollout import collect_rollout
-from latch.policy import FinderPolicy, PolicyNoiseWrapper
-from latch.env import Env
-from latch import LatchState, Infos
-
-import jax_dataclasses as jdc
+from typing import Tuple
 
 import jax
 import jax.numpy as jnp
+import jax_dataclasses as jdc
 from jax.tree_util import Partial
 
-from typing import Tuple
+from latch import Infos, LatchState
+from latch.env import Env
+from latch.policy import FinderPolicy, PolicyNoiseWrapper
+from latch.rollout import collect_rollout
+
+from .train_epoch import train_epoch
 
 
 def train_rollout(train_state: LatchState) -> LatchState:
@@ -42,8 +42,8 @@ def train_rollout(train_state: LatchState) -> LatchState:
     # Define a function that makes a policy for a given target
     def make_policy(target: jax.Array):
         finder = FinderPolicy(latent_target=target)
-        noisy = PolicyNoiseWrapper(wrapped_policy=finder, variances=jnp.ones(2) * 0.1)
-        return noisy
+        # noisy = PolicyNoiseWrapper(wrapped_policy=finder, variances=jnp.ones(2) * 0.1)
+        return finder
 
     # Make the policy for each target
     policies = jax.vmap(make_policy)(target_states)
@@ -72,7 +72,6 @@ def train_rollout(train_state: LatchState) -> LatchState:
     latent_final_states = jax.vmap(train_state.target_models.encode_state)(final_states)
     final_latent_diffs = latent_final_states - target_states
     final_latent_diff_norms = jnp.linalg.norm(final_latent_diffs, ord=1, axis=-1)
-    final_latent_diff_norms_mean = jnp.mean(final_latent_diff_norms)
 
     # Add more infos
     rollout_infos = rollout_infos.add_info(
