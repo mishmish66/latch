@@ -62,19 +62,19 @@ edge_config_list:
     target: "smoothness"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e11
+      sharpness: 1e8
       center: 0.0
   - source: "state_reconstruction"
     target: "smoothness"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e11
+      sharpness: 1e6
       center: 0.0
   - source: "action_reconstruction"
     target: "smoothness"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e11
+      sharpness: 1e6
       center: 0.0
   - source: "state_condensation"
     target: "smoothness"
