@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 import hydra
@@ -42,21 +42,21 @@ class NetConfig:
     latent_action_dim: int
     action_dim: int
 
-    state_encoder_layers: List[int]
-    action_encoder_layers: List[int]
-
-    state_decoder_layers: List[int]
-    action_decoder_layers: List[int]
-
-    temporal_encoder_min_freq: float
-    temporal_encoder_max_freq: float
-
-    transition_model_n_layers: int
-    transition_model_latent_dim: int
-    transition_model_n_heads: int
-
     latent_state_radius: float
     latent_action_radius: float
+
+    state_encoder_layers: List[int] = field(default_factory=lambda: [1024, 512, 256, 128])  # type: ignore
+    action_encoder_layers: List[int] = field(default_factory=lambda: [1024, 512, 256, 64])  # type: ignore
+
+    state_decoder_layers: List[int] = field(default_factory=lambda: [1024, 512, 256, 128])  # type: ignore
+    action_decoder_layers: List[int] = field(default_factory=lambda: [1024, 512, 256, 64])  # type: ignore
+
+    temporal_encoder_min_freq: float = 0.015625
+    temporal_encoder_max_freq: float = 0.5
+
+    transition_model_n_layers: int = 3
+    transition_model_latent_dim: int = 128
+    transition_model_n_heads: int = 4
 
 
 @dataclass
@@ -68,9 +68,9 @@ class EdgeConfig:
 
 @dataclass
 class LatchLossConfig:
-    edge_config_list: List[EdgeConfig]
+    edge_config_list: List[EdgeConfig] = field(default_factory=lambda: [])
 
-    loss_config_list: List[LossFunc.Config]
+    loss_config_list: List[LossFunc.Config] = field(default_factory=lambda: [])
 
     # state_reconstruction_loss_config: StateReconstructionLoss.Config
     # action_reconstruction_loss_config: ActionReconstructionLoss.Config
@@ -86,25 +86,24 @@ class LatchLossConfig:
 class TrainConfig:
 
     net_config: NetConfig
+    loss_config: LatchLossConfig = LatchLossConfig()
 
-    rollouts: int
-    epochs: int
-    batch_size: int
-    traj_per_rollout: int
-    rollout_length: int
-    target_net_tau: float
-    learning_rate: float
+    rollouts: int = 512
+    epochs: int = 64
+    batch_size: int = 64
+    traj_per_rollout: int = 1024
+    rollout_length: int = 64
+    target_net_tau: float = 0.05
+    learning_rate: float = 1e-4
 
-    checkpoint_dir: str
-    checkpoint_count: int
-    save_every: int
-    eval_every: int
-    use_wandb: bool
+    checkpoint_dir: str = "checkpoints"
+    checkpoint_count: int = 3
+    save_every: int = 1
+    eval_every: int = 1
+    use_wandb: bool = False
 
-    seed: int
-    resume: bool
-
-    loss_config: LatchLossConfig
+    seed: int = 0
+    resume: bool = False
 
     warm_start_path: Optional[str] = None
 
