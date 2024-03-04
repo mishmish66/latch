@@ -33,10 +33,7 @@ class FinderPolicy(OptimizerPolicy):
         )
         latent_states_prime_err = latent_states_prime - self.latent_target
         dists = jnp.linalg.norm(latent_states_prime_err, ord=1, axis=-1)
-        dists_sq = jnp.square(
-            dists,
-        )
         causal_mask = make_mask(len(latent_actions), current_action_i)
-        future_costs = jnp.where(causal_mask, dists_sq, 0.0)
+        future_costs = jnp.where(causal_mask, dists, 0.0)
 
         return jnp.mean(future_costs)  # type: ignore
