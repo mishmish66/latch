@@ -49,43 +49,22 @@ class SmoothnessLoss(WeightedLossFunc):
             actions,
             start_state_idx,
         ):
-            latent_states = jax.vmap(
-                models.encode_state,
-            )(
-                state=states,
-            )
+            # Encode states and actions
+
+            latent_states = jax.vmap(models.encode_state)(state=states)
 
             latent_prev_states = latent_states[:-1]
 
-            latent_actions = jax.vmap(
-                models.encode_action,
-            )(
-                action=actions,
-                latent_state=latent_prev_states,
+            latent_actions = jax.vmap(models.encode_action)(
+                action=actions, latent_state=latent_prev_states
             )
 
             latent_start_state = latent_states[start_state_idx]
 
-            rng, key = jax.random.split(key)
-            neighborhood_latent_start_states = models.get_neighborhood_states(
-                key=rng,
-                latent_state=latent_start_state,
-                count=self.neighborhood_sample_count,
-            )
-            neighborhood_start_states = jax.lax.stop_gradient(
-                jax.vmap(models.decode_state)(
-                    latent_state=neighborhood_latent_start_states
-                )
-            )
-            neighborhood_latent_start_states = jax.vmap(models.encode_state)(
-                state=neighborhood_start_states
-            )
-
             start_action = actions[start_state_idx]
 
             latent_start_action = models.encode_action(
-                action=start_action,
-                latent_state=latent_start_state,
+                action=start_action, latent_state=latent_start_state
             )
 
             rng, key = jax.random.split(key)
@@ -95,15 +74,13 @@ class SmoothnessLoss(WeightedLossFunc):
                 latent_action=latent_start_action,
             )
             neighborhood_start_actions = jax.lax.stop_gradient(
-                jax.vmap(models.decode_action)(
-                    latent_action=neighborhood_latent_start_actions,
-                    latent_state=neighborhood_latent_start_states,
-                )
+                jax.vmap(
+                    Partial(models.decode_action, latent_state=latent_start_state)
+                )(latent_action=neighborhood_latent_start_actions)
             )
-            neighborhood_latent_start_actions = jax.vmap(models.encode_action)(
-                action=neighborhood_start_actions,
-                latent_state=neighborhood_start_states,
-            )
+            neighborhood_latent_start_actions = jax.vmap(
+                Partial(models.encode_action, latent_state=latent_start_state)
+            )(action=neighborhood_start_actions)
 
             latent_actions = jnp.repeat(
                 latent_actions[None, ...],
@@ -114,42 +91,49 @@ class SmoothnessLoss(WeightedLossFunc):
                 ..., start_state_idx, :
             ].set(neighborhood_latent_start_actions)
 
+            # Feed neighborhood actions through the model
+
             neighborhood_next_latent_states_prime = jax.vmap(
                 jax.tree_util.Partial(
                     models.infer_states,
+                    latent_start_state=latent_start_state,
                     current_action_i=start_state_idx,
                 )
-            )(neighborhood_latent_start_states, neighborhood_latent_actions)
+            )(latent_actions=neighborhood_latent_actions)
 
-            pairwise_neighborhood_state_diffs = (
-                neighborhood_next_latent_states_prime[..., None, :]
-                - neighborhood_latent_start_states[..., None, :, :]
+            # Compute loss
+            time_steps = len(actions)
+            time_steps_after_change = jnp.arange(time_steps) - start_state_idx + 1
+            neighborhood_size = jnp.power(models.gamma, -time_steps_after_change)
+
+            # Scaling them before computing diffs for convenience, it makes no sense but math-wise it works so meh
+            scaled_states = (
+                neighborhood_next_latent_states_prime * neighborhood_size[..., None]
+            )
+            pairwise_neighborhood_action_diffs = (
+                neighborhood_latent_start_actions[None, ...]
+                - neighborhood_latent_start_actions[:, None, ...]
+            )
+            pairwise_neighborhood_action_dists = jnp.linalg.norm(
+                pairwise_neighborhood_action_diffs, ord=1, axis=-1
             )
 
-            pairwise_neighborhood_state_dists = jnp.linalg.norm(
-                pairwise_neighborhood_state_diffs, ord=1, axis=-1
+            scaled_pairwise_neighborhood_state_diffs = (
+                scaled_states[None, ...] - scaled_states[:, None, ...]
+            )
+            scaled_pairwise_neighborhood_state_dists = jnp.linalg.norm(
+                scaled_pairwise_neighborhood_state_diffs, ord=1, axis=-1
             )
 
-            neighborhood_violations = jnp.maximum(
-                0.0, pairwise_neighborhood_state_dists - 1.0
+            lipschitz_violations = jnp.maximum(
+                0.0,
+                pairwise_neighborhood_action_dists[..., None]
+                - scaled_pairwise_neighborhood_state_dists,
             )
 
-            pairwise_sample_diffs = (
-                neighborhood_latent_start_states[..., None, :]
-                - neighborhood_latent_start_states[..., None, :, :]
-            )
-            pairwise_sample_dists = jnp.linalg.norm(
-                pairwise_sample_diffs, ord=1, axis=-1
-            )
-            pairwise_sample_dist_geoms = jnp.power(1 / 5, pairwise_sample_dists)
+            neighborhood_violation_logs = jnp.log(lipschitz_violations + 1)
 
-            neighborhood_violation_logs = jnp.log(neighborhood_violations + 1)
-            # neighborhood_violation_square = jnp.square(neighborhood_violations)
-            closeness_loss = (
-                pairwise_sample_dist_geoms[..., None, :] * neighborhood_violation_logs
-            )
-
-            total_loss = jnp.mean(closeness_loss)
+            total_loss = jnp.mean(neighborhood_violation_logs)
 
             return total_loss
 

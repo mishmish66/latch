@@ -45,6 +45,8 @@ class NetConfig:
     latent_state_radius: float
     latent_action_radius: float
 
+    gamma: float = 0.99
+
     state_encoder_layers: List[int] = field(default_factory=lambda: [1024, 512, 256, 128])  # type: ignore
     action_encoder_layers: List[int] = field(default_factory=lambda: [1024, 512, 256, 64])  # type: ignore
 
@@ -142,6 +144,7 @@ def configure_nets(net_config: NetConfig):
         ),
         latent_state_radius=net_config.latent_state_radius,
         latent_action_radius=net_config.latent_action_radius,
+        gamma=net_config.gamma,
     )
 
 

@@ -43,3 +43,5 @@ net_config:
 
   latent_state_radius: 1.5
   latent_action_radius: 2.0
+
+  gamma: 0.99

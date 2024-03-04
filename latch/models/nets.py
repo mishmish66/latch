@@ -317,6 +317,8 @@ class Nets:
     latent_state_radius: float
     latent_action_radius: float
 
+    gamma: float
+
     @property
     def latent_state_dim(self):
         return self.state_encoder.latent_state_dim
