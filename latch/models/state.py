@@ -78,7 +78,7 @@ class ModelState:
     @property
     def latent_action_dim(self):
         return self.nets.latent_action_dim
-    
+
     @property
     def gamma(self):
         return self.nets.gamma
@@ -149,8 +149,8 @@ def generate_passing_samples(
     def cond_fun(while_pack):
         sample, key, count = while_pack
         invalid = ~validity_check(sample)
-        max_loops_reached = count >= max_loops
-        return jnp.logical_or(max_loops_reached, count < max_loops)
+        under_max_loops = count < max_loops
+        return jnp.logical_and(under_max_loops, invalid)
 
     def body_fun(while_pack):
         sample, key, count = while_pack
