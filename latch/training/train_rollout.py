@@ -45,12 +45,12 @@ def train_rollout(train_state: LatchState) -> LatchState:
         p=1.0,
         shape=[train_state.config.traj_per_rollout],
     )
-    target_states = unit_ball_samples * train_state.config.latent_state_radius * 1.1
+    target_states = unit_ball_samples * train_state.config.latent_state_radius * 1.075
 
     # Define a function that makes a policy for a given target
     def make_policy(target: jax.Array):
         finder = FinderPolicy(latent_target=target)
-        noisy = PolicyNoiseWrapper(wrapped_policy=finder, variances=jnp.ones(2) * 0.1)
+        noisy = PolicyNoiseWrapper(wrapped_policy=finder, variances=jnp.ones(2) * 0.025)
         return noisy
 
     # Make the policy for each target
