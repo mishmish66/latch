@@ -66,7 +66,7 @@ def collect_rollout(
 
     rng, key = jax.random.split(key)
     scan_rngs = jax.random.split(rng, train_state.config.rollout_length - 1)
-    _, ((states, actions), dense_states, policy_info) = jax.lax.scan(
+    (final_state, _, _), ((states, actions), dense_states, policy_info) = jax.lax.scan(
         scanf,
         (start_state, 0, init_policy_carry),
         scan_rngs,
@@ -75,7 +75,7 @@ def collect_rollout(
     dense_states = rearrange(dense_states, "t u s -> (t u) s")
 
     dense_states = jnp.concatenate([start_state[None], dense_states])
-    states = jnp.concatenate([states, start_state[None]])
+    states = jnp.concatenate([states, final_state[None]])
 
     if return_dense_states:
         return (
@@ -123,5 +123,9 @@ def eval_actor(
     rng, key = jax.random.split(key)
     achieved_cost = policy.true_traj_cost_func(result_states, result_actions, 0)
     infos = rollout_infos.add_info("achieved_cost", achieved_cost)
+    infos = infos.add_info(
+        "final state cost",
+        policy.true_space_cost_func(result_states[-1], result_actions[-1]),
+    )
 
     return result_states, infos, dense_states
