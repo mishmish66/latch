@@ -8,7 +8,10 @@ from jax import numpy as jnp
 from jax.tree_util import Partial
 from overrides import override
 
+from einops import einsum
+
 from latch import Infos
+from latch.models.nets import make_mask
 from latch.models import ModelState
 
 from .loss_func import WeightedLossFunc
@@ -131,11 +134,18 @@ class SmoothnessLoss(WeightedLossFunc):
                 - scaled_pairwise_neighborhood_state_dists,
             )
 
-            neighborhood_violation_logs = jnp.log(lipschitz_violations + 1)
+            causal_mask = make_mask(lipschitz_violations.shape[-1], start_state_idx)
 
-            total_loss = jnp.mean(neighborhood_violation_logs)
+            relevant_count = jnp.triu(
+                jnp.ones_like(lipschitz_violations) * causal_mask, 1
+            ).sum()
+            relevant_violations = jnp.triu(lipschitz_violations * causal_mask, 1)
 
-            return total_loss
+            neighborhood_violation_logs = jnp.log(relevant_violations + 1)
+
+            total_loss = jnp.sum(neighborhood_violation_logs)
+            mean_loss = total_loss / relevant_count
+            return mean_loss
 
         rng, key = jax.random.split(key)
         start_state_idxs = jax.random.randint(
@@ -144,9 +154,7 @@ class SmoothnessLoss(WeightedLossFunc):
 
         rng, key = jax.random.split(key)
         rngs = jax.random.split(rng, len(states))
-        losses = jax.vmap(
-            single_traj_loss_smoothness,
-        )(
+        losses = jax.vmap(single_traj_loss_smoothness)(
             key=rngs,
             states=states,
             actions=actions,
