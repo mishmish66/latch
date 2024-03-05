@@ -37,5 +37,6 @@ class FinderPolicy(OptimizerPolicy):
         )
         causal_mask = make_mask(len(latent_actions), current_action_i)
         future_err_norms = jnp.where(causal_mask, latent_states_prime_err_norm, 0.0)
+        future_state_count = jnp.sum(causal_mask)
 
-        return jnp.mean(future_err_norms)  # type: ignore
+        return jnp.sum(future_err_norms) / future_state_count  # type: ignore
