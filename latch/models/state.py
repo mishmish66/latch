@@ -99,7 +99,7 @@ class ModelState:
         def validity_check(sample):
             inside_space = jnp.linalg.norm(sample) <= self.latent_state_radius
             sample_dist = jnp.linalg.norm(sample - latent_state, p=1)
-            inside_neighborhood = sample_dist <= self.latent_state_radius
+            inside_neighborhood = sample_dist <= 1.0
 
             return jnp.logical_and(inside_space, inside_neighborhood)
 
@@ -126,7 +126,7 @@ class ModelState:
         def validity_check(sample):
             inside_space = jnp.linalg.norm(sample) <= self.latent_action_radius
             sample_dist = jnp.linalg.norm(sample - latent_action, ord=1)
-            inside_neighborhood = sample_dist <= self.latent_action_radius
+            inside_neighborhood = sample_dist <= 1.0
 
             return jnp.logical_and(inside_space, inside_neighborhood)
 
