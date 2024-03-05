@@ -16,7 +16,7 @@ class ActorPolicy(OptimizerPolicy):
     state_weights: jax.Array
 
     def true_space_cost_func(self, state, action):
-        return jnp.abs(state - self.state_target) * self.state_weights
+        return jnp.sum(jnp.abs(state - self.state_target) * self.state_weights)
 
     def true_traj_cost_func(
         self,
@@ -27,7 +27,8 @@ class ActorPolicy(OptimizerPolicy):
         costs = jax.vmap(self.true_space_cost_func)(states, actions)
         causal_mask = make_mask(len(costs), current_action_i + 1)
         future_costs = jnp.where(causal_mask[..., None], costs, 0.0)
-        return jnp.mean(future_costs)
+        future_state_count = jnp.sum(causal_mask)
+        return jnp.sum(future_costs) / future_state_count
 
     @override
     def cost_func(
