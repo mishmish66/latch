@@ -60,15 +60,19 @@ class ForwardLoss(WeightedLossFunc):
                 (scalar): The loss value.
             """
 
-            latent_states = jax.vmap(models.encode_state)(state=states)
+            latent_states = jax.lax.stop_gradient(
+                jax.vmap(models.encode_state)(state=states)
+            )
 
             latent_prev_states = latent_states[:-1]
             latent_next_states = latent_states[1:]
             latent_start_state = latent_states[start_state_idx]
 
-            latent_actions = jax.vmap(models.encode_action)(
-                action=actions,
-                latent_state=latent_prev_states,
+            latent_actions = jax.lax.stop_gradient(
+                jax.vmap(models.encode_action)(
+                    action=actions,
+                    latent_state=latent_prev_states,
+                )
             )
 
             latent_next_state_prime = models.infer_states(
@@ -92,12 +96,13 @@ class ForwardLoss(WeightedLossFunc):
 
         rng, key = jax.random.split(key)
         start_state_idxs = jax.random.randint(
-            rng, (len(states),), minval=0, maxval=len(states) - len(states) // 8
+            rng,
+            (len(states),),
+            minval=0,
+            maxval=len(states) - len(states) // 8,
         )
 
-        losses = jax.vmap(
-            single_traj_loss_forward,
-        )(
+        losses = jax.vmap(single_traj_loss_forward)(
             states=states,
             actions=actions,
             start_state_idx=start_state_idxs,
