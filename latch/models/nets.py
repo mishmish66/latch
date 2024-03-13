@@ -47,20 +47,20 @@ class StateEncoder(nn.Module):
     layer_sizes: List[int] = struct.field(pytree_node=False)
 
     def setup(self):
-        self.freq_layer = FreqLayer(out_dim=self.layer_sizes[0])
+        # self.freq_layer = FreqLayer(out_dim=self.layer_sizes[0])
 
         self.dense_layers = [
             nn.Dense(dim, name=f"FC{i}")
             for i, dim in enumerate(
                 [
-                    *self.layer_sizes[1:],
+                    *self.layer_sizes,  # [1:],
                     self.latent_state_dim,
                 ]
             )
         ]
 
     def __call__(self, x) -> Any:
-        x = self.freq_layer(x)
+        # x = self.freq_layer(x)
 
         for layer in self.dense_layers[:-1]:
             x = layer(x)
@@ -75,20 +75,20 @@ class StateDecoder(nn.Module):
     layer_sizes: List[int] = struct.field(pytree_node=False)
 
     def setup(self):
-        self.freq_layer = FreqLayer(out_dim=self.layer_sizes[0])
+        # self.freq_layer = FreqLayer(out_dim=self.layer_sizes[0])
 
         self.dense_layers = [
             nn.Dense(d, name=f"FC{i}")
             for i, d in enumerate(
                 [
-                    *self.layer_sizes[1:],
+                    *self.layer_sizes,  # [1:],
                     self.state_dim,
                 ]
             )
         ]
 
     def __call__(self, x) -> Any:
-        x = self.freq_layer(x)
+        # x = self.freq_layer(x)
 
         for layer in self.dense_layers[:-1]:
             x = layer(x)
@@ -102,21 +102,22 @@ class ActionEncoder(nn.Module):
     layer_sizes: List[int] = struct.field(pytree_node=False)
 
     def setup(self):
-        self.freq_layer = FreqLayer(out_dim=self.layer_sizes[0])
+        # self.freq_layer = FreqLayer(out_dim=self.layer_sizes[0])
 
         self.dense_layers = [
             nn.Dense(dim, name=f"FC{i}")
             for i, dim in enumerate(
                 [
-                    *self.layer_sizes[1:],
+                    *self.layer_sizes,  # [1:],
                     self.latent_action_dim,
                 ]
             )
         ]
 
     def __call__(self, action, latent_state) -> Any:
-        freq_action = self.freq_layer(action)
-        x = jnp.concatenate([freq_action, latent_state], axis=-1)
+        # freq_action = self.freq_layer(action)
+        # x = jnp.concatenate([freq_action, latent_state], axis=-1)
+        x = jnp.concatenate([action, latent_state], axis=-1)
 
         for layer in self.dense_layers[:-1]:
             x = layer(x)
@@ -131,13 +132,13 @@ class ActionDecoder(nn.Module):
     layer_sizes: List[int] = struct.field(pytree_node=False)
 
     def setup(self):
-        self.freq_layer = FreqLayer(out_dim=self.layer_sizes[0])
+        # self.freq_layer = FreqLayer(out_dim=self.layer_sizes[0])
 
         self.dense_layers = [
             nn.Dense(d, name=f"FC{i}")
             for i, d in enumerate(
                 [
-                    *self.layer_sizes[1:],
+                    *self.layer_sizes,  # [1:],
                     self.act_dim,
                 ]
             )
@@ -145,7 +146,7 @@ class ActionDecoder(nn.Module):
 
     def __call__(self, latent_action, latent_state) -> Any:
         x = jnp.concatenate([latent_action, latent_state], axis=-1)
-        x = self.freq_layer(x)
+        # x = self.freq_layer(x)
         for layer in self.dense_layers[:-1]:
             x = layer(x)
             x = nn.relu(x)
@@ -154,7 +155,7 @@ class ActionDecoder(nn.Module):
 
 
 class TemporalEncoder(nn.Module):
-    min_freq: float = 0.015625  # 64 element period
+    min_freq: float = 0.0078125  # 128 element period
     max_freq: float = 0.5  # 2 element period
 
     def setup(self):
