@@ -9,3 +9,8 @@ Latch.egg-info/PKG-INFO
 Latch.egg-info/SOURCES.txt
 Latch.egg-info/top_level.txt
 outputs/*
+*.aux
+*.log
+*.pdf
+*.fls
+*.fdb_latexmk
