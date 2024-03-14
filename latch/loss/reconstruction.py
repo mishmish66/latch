@@ -54,10 +54,9 @@ class StateReconstructionLoss(WeightedLossFunc):
             models.decode_state,
         )(latent_state=latent_states)
 
-        error = jnp.abs(states - reconstructed_states)
-        error_square = jnp.square(error)
-        error_log = jnp.log(error + 1e-8)
-        losses = error_square  # + error_log
+        reconstruction_errors = states - reconstructed_states
+        error_norms = jnp.linalg.norm(reconstruction_errors, ord=1, axis=-1)
+        losses = jnp.square(error_norms)
         loss = jnp.mean(losses)
 
         return loss, Infos()
@@ -114,10 +113,9 @@ class ActionReconstructionLoss(WeightedLossFunc):
             latent_action=latent_actions, latent_state=latent_states
         )
 
-        error = jnp.abs(actions - reconstructed_actions)
-        error_square = jnp.square(error)
-        error_log = jnp.log(error + 1e-8)
-        losses = error_square  # + error_log
+        reconstruction_errors = actions - reconstructed_actions
+        error_norms = jnp.linalg.norm(reconstruction_errors, ord=1, axis=-1)
+        losses = jnp.square(error_norms)
         loss = jnp.mean(losses)
 
         return loss, Infos()

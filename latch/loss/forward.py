@@ -83,11 +83,9 @@ class ForwardLoss(WeightedLossFunc):
 
             future_mask = make_mask(len(latent_next_states), start_state_idx)
 
-            errs = jnp.abs(latent_next_states - latent_next_state_prime)
-            ln_errs = jnp.log(errs + 1e-8)
-            squared_errs = jnp.square(errs)
-
-            losses = squared_errs  # + ln_errs
+            prediction_errors = latent_next_states - latent_next_state_prime
+            err_norms = jnp.linalg.norm(prediction_errors, ord=1, axis=-1)
+            losses = jnp.square(err_norms)
 
             future_losses = einsum(losses, future_mask, "t ..., t -> t ...")
             mean_future_loss = jnp.mean(future_losses)
