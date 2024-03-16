@@ -10,7 +10,7 @@ use_wandb: False
 
 learning_rate: 1.0e-4
 
-rollouts: 512
+rollouts: 1024
 epochs: 64
 batch_size: 64
 traj_per_rollout: 1024
@@ -37,8 +37,8 @@ net_config:
   temporal_encoder_min_freq: 0.0078125 # 1/128
   temporal_encoder_max_freq: 0.5 # 1/2
 
-  transition_model_n_layers: 4
-  transition_model_latent_dim: 256
+  transition_model_n_layers: 2
+  transition_model_latent_dim: 128
   transition_model_n_heads: 4
 
   latent_state_radius: 1.75
