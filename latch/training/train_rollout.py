@@ -1,6 +1,6 @@
 from .train_epoch import train_epoch
 from latch.rollout import collect_rollout
-from latch.policy import FinderPolicy, PolicyNoiseWrapper
+from latch.policy import FinderPolicy, PolicyNoiseWrapper, RandomPolicy
 from latch.env import Env
 from latch import LatchState, Infos
 
@@ -49,9 +49,10 @@ def train_rollout(train_state: LatchState) -> LatchState:
 
     # Define a function that makes a policy for a given target
     def make_policy(target: jax.Array):
-        finder = FinderPolicy(latent_target=target)
+        rando = RandomPolicy()
+        # finder = FinderPolicy(latent_target=target)
         # noisy = PolicyNoiseWrapper(wrapped_policy=finder, variances=jnp.ones(2) * 0.01)
-        return finder
+        return rando
 
     # Make the policy for each target
     policies = jax.vmap(make_policy)(target_states)

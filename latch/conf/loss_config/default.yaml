@@ -9,7 +9,7 @@ loss_config_list:
 
   - loss_type: "forward"
     name: "forward"
-    weight: 1.0
+    weight: 10.0
 
   - loss_type: "state_condensation"
     name: "state_condensation"
@@ -25,12 +25,12 @@ loss_config_list:
 
   - loss_type: "state_dispersion"
     name: "state_dispersion"
-    weight: 1.0
+    weight: 0.1
     num_samples: 16
 
   - loss_type: "action_dispersion"
     name: "action_dispersion"
-    weight: 1.0
+    weight: 0.1
     num_samples: 16
 
 edge_config_list:
@@ -38,65 +38,41 @@ edge_config_list:
     target: "forward"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e4
+      sharpness: 100
       center: 0.0
   - source: "action_reconstruction"
     target: "forward"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e4
-      center: 0.0
-  - source: "state_reconstruction"
-    target: "state_condensation"
-    gate_config:
-      gate_type: "spike"
-      sharpness: 1e4
-      center: 0.0
-  - source: "state_reconstruction"
-    target: "action_condensation"
-    gate_config:
-      gate_type: "spike"
-      sharpness: 1e4
-      center: 0.0
-  - source: "action_reconstruction"
-    target: "state_condensation"
-    gate_config:
-      gate_type: "spike"
-      sharpness: 1e4
-      center: 0.0
-  - source: "action_reconstruction"
-    target: "action_condensation"
-    gate_config:
-      gate_type: "spike"
-      sharpness: 1e4
+      sharpness: 100
       center: 0.0
   - source: "forward"
     target: "smoothness"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e4
-      center: 0.0
-  - source: "state_condensation"
-    target: "smoothness"
-    gate_config:
-      gate_type: "spike"
-      sharpness: 1e4
-      center: 0.0
-  - source: "action_condensation"
-    target: "smoothness"
-    gate_config:
-      gate_type: "spike"
-      sharpness: 1e4
+      sharpness: 10
       center: 0.0
   - source: "smoothness"
     target: "state_dispersion"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e8
+      sharpness: 1e3
       center: 0.0
   - source: "smoothness"
     target: "action_dispersion"
     gate_config:
       gate_type: "spike"
-      sharpness: 1e8
+      sharpness: 1e3
+      center: 0.0
+  - source: "forward"
+    target: "state_dispersion"
+    gate_config:
+      gate_type: "spike"
+      sharpness: 10
+      center: 0.0
+  - source: "forward"
+    target: "action_dispersion"
+    gate_config:
+      gate_type: "spike"
+      sharpness: 10
       center: 0.0

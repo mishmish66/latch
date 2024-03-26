@@ -11,11 +11,11 @@ use_wandb: False
 learning_rate: 1.0e-4
 
 rollouts: 1024
-epochs: 64
+epochs: 256
 batch_size: 64
 traj_per_rollout: 1024
 rollout_length: 64
-target_net_tau: 0.05
+target_net_tau: 1.0
 
 seed: 0
 
