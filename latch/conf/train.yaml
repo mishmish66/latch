@@ -8,10 +8,10 @@ save_every: 1
 eval_every: 1
 use_wandb: False
 
-learning_rate: 1.0e-4
+learning_rate: 1.0e-3
 
-rollouts: 1024
-epochs: 256
+rollouts: 4096
+epochs: 1024
 batch_size: 64
 traj_per_rollout: 1024
 rollout_length: 64
@@ -28,11 +28,11 @@ net_config:
   latent_action_dim: 2
   action_dim: 2
 
-  state_encoder_layers: [1024, 512, 256, 128]
-  action_encoder_layers: [1024, 512, 256, 64]
+  state_encoder_layers: [256, 256]
+  action_encoder_layers: [128, 128]
 
-  state_decoder_layers: [1024, 512, 256, 128]
-  action_decoder_layers: [1024, 512, 256, 64]
+  state_decoder_layers: [256, 256]
+  action_decoder_layers: [128, 128]
 
   temporal_encoder_min_freq: 0.0078125 # 1/128
   temporal_encoder_max_freq: 0.5 # 1/2
